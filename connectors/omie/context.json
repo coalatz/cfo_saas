@@ -1,0 +1,252 @@
+{
+  "erpName": "omie",
+  "discovery": {
+    "authType": "POST body as JSON with fields app_key and app_secret (credentials) plus call (method name) and param (method-specific parameters)",
+    "authFields": [
+      "app_key",
+      "app_secret"
+    ],
+    "baseUrl": "https://app.omie.com.br/api/v1/",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/geral/clientes/",
+        "description": "Lista clientes cadastrados",
+        "bodyParams": [
+          "pagina",
+          "registros_por_pagina",
+          "apenas_importado_api"
+        ],
+        "action": "ListarClientes",
+        "isRpcStyle": true
+      },
+      {
+        "method": "POST",
+        "path": "/geral/clientes/",
+        "description": "Lista clientes cadastrados (versão resumida)",
+        "bodyParams": [
+          "pagina",
+          "registros_por_pagina",
+          "apenas_importado_api"
+        ],
+        "action": "ListarClientesResumido",
+        "isRpcStyle": true
+      },
+      {
+        "method": "POST",
+        "path": "/financas/contareceber/",
+        "description": "Lista contas a receber",
+        "bodyParams": [
+          "pagina",
+          "registros_por_pagina",
+          "apenas_importado_api"
+        ],
+        "action": "ListarContasReceber",
+        "isRpcStyle": true
+      },
+      {
+        "method": "POST",
+        "path": "/financas/contapagar/",
+        "description": "Lista contas a pagar",
+        "bodyParams": [
+          "pagina",
+          "registros_por_pagina",
+          "apenas_importado_api"
+        ],
+        "action": "ListarContasPagar",
+        "isRpcStyle": true
+      },
+      {
+        "method": "POST",
+        "path": "/produtos/notaentrada/",
+        "description": "Lista notas de entrada",
+        "bodyParams": [
+          "nPagina",
+          "nRegistrosPorPagina"
+        ],
+        "action": "ListarNotaEnt",
+        "isRpcStyle": true
+      }
+    ],
+    "paginationStrategy": "Increment the page number (pagina/nPagina) on each request using the fixed page size (registros_por_pagina/nRegistrosPorPagina). Continue until the returned records array contains fewer items than the requested page size (or zero), indicating the last page has been reached.",
+    "paginationParams": {
+      "pageParam": "pagina",
+      "sizeParam": "registros_por_pagina",
+      "defaultPageSize": 50
+    },
+    "paginationTermination": "stop when the length of the returned records array is less than the page size (or zero)",
+    "dateParams": {
+      "startParam": "",
+      "endParam": "",
+      "dateFormat": ""
+    },
+    "responseEnvelopes": [
+      "clientes_cadastro",
+      "clientes_cadastro_resumido",
+      "conta_receber_cadastro",
+      "conta_pagar_cadastro",
+      "notas"
+    ],
+    "isRpcStyle": true,
+    "description": "Omie API uses JSON‑RPC over HTTP POST. Credentials (app_key, app_secret) are sent in the request body together with the method name (call) and method‑specific parameters (param). List endpoints support pagination via page and page size fields.",
+    "docSource": "live",
+    "docUrl": "https://developer.omie.com.br/service-list/",
+    "rawDocText": "### Source: https://app.omie.com.br/api/v1/geral/clientes/\n\n# ClientesCadastro\n\n# Métodos\n\n# AlterarCliente\n\n# AssociarCodIntCliente\n\n# ConsultarCliente\n\n# ExcluirCliente\n\n# IncluirCliente\n\n# IncluirClientesPorLote\n\n# ListarClientes\n\n# ListarClientesResumido\n\n# UpsertCliente\n\n# UpsertClienteCpfCnpj\n\n# UpsertClientesPorLote\n\n# Tipos Complexos\n\n# caracteristicas\n\n# caracteristicasArray\n\n# clientesFiltro\n\n# clientesPorCodigo\n\n# clientesPorCodigoArray\n\n# clientes_cadastro\n\n# clientes_cadastroArray\n\n# clientes_cadastro_chave\n\n# clientes_cadastro_resumido\n\n# clientes_cadastro_resumidoArray\n\n# clientes_list_request\n\n# clientes_list_response\n\n# clientes_listfull_response\n\n# clientes_lote_request\n\n# clientes_lote_response\n\n# clientes_status\n\n# dadosBancarios\n\n# enderecoEntrega\n\n# info\n\n# omie_fail\n\n# recomendacoes\n\n# tags\n\n# tagsArray\n\n# Métodos\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/?WSDL\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/?WSDL\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/?WSDL\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/?PHPSOAPCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/?PHPSOAPCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/?PHPSOAPCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/?PHPJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/?PHPJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/?PHPJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/?JSJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/?JSJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/geral/clientes/?JSJSONCLIENT\n```\n\n```\n{ \"codigo_cliente_integracao\": \"CodigoInterno0001\", \"email\": \"primeiro@ccliente.com.br\", \"razao_social\": \"Primeiro Cliente Ltda Me\", \"nome_fantasia\": \"Primeiro Cliente\"}\n```\n\n```\n{ \"codigo_cliente_omie\": 0, \"codigo_cliente_integracao\": \"\"}\n```\n\n```\n{ \"codigo_cliente_omie\": 0, \"codigo_cliente_integracao\": \"\"}\n```\n\n```\n{ \"codigo_cliente_omie\": 0, \"codigo_cliente_integracao\": \"\"}\n```\n\n```\n{ \"codigo_cliente_integracao\": \"CodigoInterno0001\", \"email\": \"primeiro@ccliente.com.br\", \"razao_social\": \"Primeiro Cliente Ltda Me\", \"nome_fantasia\": \"Primeiro Cliente\"}\n```\n\n```\n{ \"clientes_cadastro\": [ { \"codigo_cliente_integracao\": \"CodigoInterno0001\", \"email\": \"primeiro@cliente.com.br\", \"nome_fantasia\": \"Primeiro Cliente\", \"razao_social\": \"Primeiro Cliente Ltda Me\" }, { \"codigo_cliente_integracao\": \"CodigoInterno0002\", \"email\": \"segundo@cliente.com.br\", \"nome_fantasia\": \"Segundo Cliente\", \"razao_social\": \"Segundo Cliente Ltda Me\" } ], \"lote\": 1}\n```\n\n```\n{ \"pagina\": 1, \"registros_por_pagina\": 50, \"apenas_importado_api\": \"N\"}\n```\n\n```\n{ \"pagina\": 1, \"registros_por_pagina\": 50, \"apenas_importado_api\": \"N\"}\n```\n\n```\n{ \"codigo_cliente_integracao\": \"CodigoInterno0001\", \"email\": \"primeiro@ccliente.com.br\", \"razao_social\": \"Primeiro Cliente Ltda Me\", \"nome_fantasia\": \"Primeiro Cliente\"}\n```\n\n```\n{ \"cnpj_cpf\": \"80.716.929/0001-50\", \"email\": \"primeiro@ccliente.com.br\", \"razao_social\": \"Primeiro Cliente Ltda Me\", \"nome_fantasia\": \"Primeiro Cliente\"}\n```\n\n```\n{ \"clientes_cadastro\": [ { \"codigo_cliente_integracao\": \"CodigoInterno0001\", \"email\": \"primeiro@cliente.com.br\", \"nome_fantasia\": \"Primeiro Cliente\", \"razao_social\": \"Primeiro Cliente Ltda Me\" }, { \"codigo_cliente_integracao\": \"CodigoInterno0002\", \"email\": \"segundo@cliente.com.br\", \"nome_fantasia\": \"Segundo Cliente\", \"razao_social\": \"Segundo Cliente Ltda Me\" } ], \"lote\": 1}\n```\n\nclientes_cadastro clientes_cadastroCadastro reduzido de produtos\n\nclientes_cadastro_chave clientes_cadastro_chaveChave para pesquisa do cadastro de clientes.\n\nclientes_cadastro_chave clientes_cadastro_chaveChave para pesquisa do cadastro de clientes.\n\nclientes_cadastro_chave clientes_cadastro_chaveChave para pesquisa do cadastro de clientes.\n\nclientes_cadastro clientes_cadastroCadastro reduzido de produtos\n\nclientes_lote_request clientes_lote_requestLote de cadastros de clientes para inclusão, limitado a 50 ocorrências por requisição.\n\nclientes_list_request clientes_list_requestLista os clientes cadastrados\n\nclientes_list_request clientes_list_requestLista os clientes cadastrados\n\nclientes_cadastro clientes_cadastroCadastro reduzido de produtos\n\nclientes_cadastro clientes_cadastroCadastro reduzido de produtos\n\nclientes_lote_request clientes_lote_requestLote de cadastros de clientes para inclusão, limitado a 50 ocorrências por requisição.\n\ncampo string30Nome da característica.+Preenchimento obrigatório. Caso não encontre a característica um novo cadastro será adicionado. conteudo string60Conteúdo do característica.+Preenchimento obrigatório na inclusão. Caso o valor desse campo não seja informado a característica será excluída para o cliente/fornecedor.\n\ncodigo_cliente_omie integerCódigo de Cliente / Fornecedor codigo_cliente_integracao string60Código de Integração com sistemas legados. cnpj_cpf string20CNPJ / CPF+Preenchimento Obrigatório para emissão de NF-e/NFS-e. razao_social string60Razão Social+Preenchimento Obrigatório. nome_fantasia string100Nome Fantasia+Preenchimento Obrigatório para emissão de NF-e/NFS-e. endereco string60Endereço+Preenchimento Opcional.Preenchimento Obrigatório para emissão de NF-e/NFS-e.Informação localizada na Aba \"Endereço\" do cadastro do Cliente.DEPRECATED para a estrutura \"clientesFiltrar\". bairro string60Bairro+Preenchimento Opcional.Preenchimento Obrigatório para emissão de NF-e/NFS-e.Informação localizada na Aba \"Endereço\" do cadastro do Cliente.DEPRECATED para a estrutura \"clientesFiltrar\". cidade string40Código da Cidade+Recebe o código ibge ou o nome da cidade.Preenchimento Opcional caso seja enviado o codigo IBGE no campo \"cidade_ibge\"Informação localizada na Aba \"Endereço\" do cadastro do Cliente.Utilize a tag \"nCodIBGE\" do método \"PesquisarCidades\" da API/api/v1/geral/cidades/para obter essa informação.Uti\n\n---\n\n### Source: https://app.omie.com.br/api/v1/financas/contareceber/\n\n# LancamentoContaReceber\n\n# Métodos\n\n# AlterarContaReceber\n\n# AlterarDistribuicaoDepartamento\n\n# CancelarContaReceber\n\n# CancelarRecebimento\n\n# ConciliarRecebimento\n\n# ConsultarContaReceber\n\n# DesconciliarRecebimento\n\n# ExcluirContaReceber\n\n# ExcluirDistribuicaoDepartamento\n\n# IncluirContaReceber\n\n# IncluirContaReceberPorLote\n\n# IncluirDistribuicaoDepartamento\n\n# LancarRecebimento\n\n# ListarContasReceber\n\n# UpsertContaReceber\n\n# UpsertContaReceberPorLote\n\n# Tipos Complexos\n\n# boleto\n\n# categorias\n\n# categoriasArray\n\n# conta_receber_cadastro\n\n# conta_receber_cadastroArray\n\n# conta_receber_cadastro_chave\n\n# conta_receber_cadastro_response\n\n# conta_receber_cancelar_recebimento\n\n# conta_receber_cancelar_recebimento_resposta\n\n# conta_receber_conciliar_request\n\n# conta_receber_conciliar_response\n\n# conta_receber_lancar_recebimento\n\n# conta_receber_lancar_recebimento_resposta\n\n# conta_receber_lote\n\n# conta_receber_lote_response\n\n# distribuicao\n\n# distribuicaoArray\n\n# especifico\n\n# info\n\n# lancamento_detalhe\n\n# lancamento_detalheArray\n\n# lcrChave\n\n# lcrListarRequest\n\n# lcrListarResponse\n\n# mensal\n\n# omie_fail\n\n# rateio_cadastro\n\n# recebimento\n\n# repeticao\n\n# semanal\n\n# status_lote\n\n# status_loteArray\n\n# Métodos\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/?WSDL\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/?WSDL\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/?WSDL\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/?PHPSOAPCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/?PHPSOAPCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/?PHPSOAPCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/?PHPJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/?PHPJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/?PHPJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/?JSJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/?JSJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contareceber/?JSJSONCLIENT\n```\n\n```\n{ \"codigo_lancamento_integracao\": \"1780452748\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 100.00, \"codigo_categoria\": \"1.01.02\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124}\n```\n\n```\n{ \"chave_lancamento\": 0}\n```\n\n```\n{ \"codigo_baixa\": 0}\n```\n\n```\n{ \"codigo_baixa\": 0}\n```\n\n```\n{ \"codigo_lancamento_omie\": 0, \"codigo_lancamento_integracao\": \"\" }\n```\n\n```\n{ \"codigo_baixa\": 0}\n```\n\n```\n{ \"chave_lancamento\": 0}\n```\n\n```\n{ \"codigo_lancamento_integracao\": \"1780452748\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 100.00, \"codigo_categoria\": \"1.01.02\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124}\n```\n\n```\n{ \"lote\": 100, \"conta_receber_cadastro\": [ { \"codigo_lancamento_integracao\": \"1780452748\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 100.00, \"codigo_categoria\": \"1.01.02\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124 }, { \"codigo_lancamento_integracao\": \"1780452748\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 120.00, \"codigo_categoria\": \"1.01.02\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124 } ] }\n```\n\n```\n{ \"codigo_lancamento\": 0, \"codigo_baixa\": 0, \"codigo_conta_corrente\": 0, \"valor\": 0, \"data\": \"\", \"observacao\": \"\"}\n```\n\n```\n{ \"pagina\": 1, \"registros_por_pagina\": 20, \"apenas_importado_api\": \"N\"}\n```\n\n```\n{ \"codigo_lancamento_integracao\": \"1780452748\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 100.00, \"codigo_categoria\": \"1.01.02\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124}\n```\n\n```\n{ \"lote\": 100, \"conta_receber_cadastro\": [ { \"codigo_lancamento_integracao\": \"1780452748\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 100.00, \"codigo_categoria\": \"1.01.02\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124 }, { \"codigo_lancamento_integracao\": \"1780452748\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 120.00, \"codigo_categoria\": \"1.01.02\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124 } ] }\n```\n\nconta_receber_cadastro conta_receber_cadastroCadastro de contas a receber.\n\nrateio_cadastro rateio_cadastroCadastro de Distribuição por Departamento\n\nconta_receber_cadastro_chave conta_receber_cadastro_chaveChave da conta a a receber\n\nconta_receber_cancelar_recebimento conta_receber_cancelar_recebimentoRequisição de cancelamento de lançamento de baixa do recebimento.\n\nconta_receber_conciliar_request conta_receber_conciliar_requestRealiza a conciliação do documento\n\nlcrChave lcrChaveChave de pesquisa do Lançamento de Contas a Receber\n\nconta_receber_conciliar_request conta_receber_conciliar_requestRealiza a conciliação do documento\n\nconta_receber_cadastro_chave conta_receber_cadastro_chaveChave da conta a a receber\n\nconta_receber_cadastro_chave conta_receber_cadastro_chaveChave da conta a a receber\n\nconta_receber_cadastro conta_receber_cadastroCadastro de contas a receber.\n\nconta_receber_lote conta_receber_loteInclusão de Contas a Receber por Lote\n\nrateio_cadastro rateio_cadastroCadastro de Distribuição por Departamento\n\nconta_receber_lancar_recebimento conta_receber_lancar_recebimentoInformações para realizada a Baixa do Contas a Receber.\n\nlcrListarRequest lcrListarRequestSolicitação de Listagem de Contas a Receber\n\nconta_receber_cadastro conta_receber_cadastroCadastro de contas a receber.\n\nconta_receber_lote conta_receber_loteInclusão de Contas a Receber por Lote\n\ncGerado string1Gerou boleto (S/N)? dDtEmBol string10Data\n\n---\n\n### Source: https://app.omie.com.br/api/v1/financas/contapagar/\n\n# LancamentoContaPagar\n\n# Métodos\n\n# AlterarContaPagar\n\n# CancelarPagamento\n\n# ConsultarContaPagar\n\n# ExcluirContaPagar\n\n# IncluirContaPagar\n\n# IncluirContaPagarPorLote\n\n# LancarPagamento\n\n# ListarContasPagar\n\n# UpsertContaPagar\n\n# UpsertContaPagarPorLote\n\n# Tipos Complexos\n\n# categorias\n\n# categoriasArray\n\n# cnab_integracao_bancaria\n\n# conta_pagar_cadastro\n\n# conta_pagar_cadastroArray\n\n# conta_pagar_cadastro_chave\n\n# conta_pagar_cadastro_response\n\n# conta_pagar_cancelar_pagamento\n\n# conta_pagar_cancelar_pagamento_resposta\n\n# conta_pagar_lancar_pagamento\n\n# conta_pagar_lancar_pagamento_resposta\n\n# conta_pagar_lote\n\n# conta_pagar_lote_response\n\n# distribuicao\n\n# distribuicaoArray\n\n# info\n\n# lcpListarRequest\n\n# lcpListarResponse\n\n# omie_fail\n\n# pagamento\n\n# servico_tomado\n\n# Métodos\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/?WSDL\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/?WSDL\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/?WSDL\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/?PHPSOAPCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/?PHPSOAPCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/?PHPSOAPCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/?PHPJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/?PHPJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/?PHPJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/?JSJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/?JSJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/financas/contapagar/?JSJSONCLIENT\n```\n\n```\n{ \"codigo_lancamento_integracao\": \"1780455587\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 100.00, \"codigo_categoria\": \"2.04.01\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124}\n```\n\n```\n{ \"codigo_baixa\": 0}\n```\n\n```\n{ \"codigo_lancamento_omie\": 0, \"codigo_lancamento_integracao\": \"\" }\n```\n\n```\n{ \"codigo_lancamento_omie\": 0, \"codigo_lancamento_integracao\": \"\" }\n```\n\n```\n{ \"codigo_lancamento_integracao\": \"1780455587\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 100.00, \"codigo_categoria\": \"2.04.01\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124}\n```\n\n```\n{ \"lote\": 100, \"conta_pagar_cadastro\": [ { \"codigo_lancamento_integracao\": \"1780455587\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 100.00, \"codigo_categoria\": \"2.04.01\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124 }, { \"codigo_lancamento_integracao\": \"1780455587\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 120.00, \"codigo_categoria\": \"2.04.01\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124 } ] }\n```\n\n```\n{ \"codigo_lancamento\": 0, \"codigo_lancamento_integracao\": \"\", \"codigo_baixa_integracao\": \"\", \"codigo_conta_corrente\": \"\", \"valor\": 100.20, \"desconto\": 0, \"juros\": 0, \"multa\": 0, \"data\": \"02/06/2026\", \"observacao\": \"Baixa de documento realizada via API.\" }\n```\n\n```\n{ \"pagina\": 1, \"registros_por_pagina\": 20, \"apenas_importado_api\": \"N\"}\n```\n\n```\n{ \"codigo_lancamento_integracao\": \"1780455587\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 100.00, \"codigo_categoria\": \"2.04.01\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124}\n```\n\n```\n{ \"lote\": 100, \"conta_pagar_cadastro\": [ { \"codigo_lancamento_integracao\": \"1780455587\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 100.00, \"codigo_categoria\": \"2.04.01\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124 }, { \"codigo_lancamento_integracao\": \"1780455587\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 120.00, \"codigo_categoria\": \"2.04.01\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124 } ] }\n```\n\nconta_pagar_cadastro conta_pagar_cadastroCadastro de contas a pagar.\n\nconta_pagar_cancelar_pagamento conta_pagar_cancelar_pagamentoCancela um pagamento realizado para um título do Contas a Pagar.\n\nconta_pagar_cadastro_chave conta_pagar_cadastro_chaveChave da conta a pagar\n\nconta_pagar_cadastro_chave conta_pagar_cadastro_chaveChave da conta a pagar\n\nconta_pagar_cadastro conta_pagar_cadastroCadastro de contas a pagar.\n\nconta_pagar_lote conta_pagar_loteInclusão em Lote de contas a pagar\n\nconta_pagar_lancar_pagamento conta_pagar_lancar_pagamentoInformações para realizar a Baixa do Contas a Pagar.\n\nlcpListarRequest lcpListarRequestSolicitação de Listagem de Contas a Pagar\n\nconta_pagar_cadastro conta_pagar_cadastroCadastro de contas a pagar.\n\nconta_pagar_lote conta_pagar_loteInclusão em Lote de contas a pagar\n\ncodigo_categoria string20Código da Categoria valor decimalValor do Rateio percentual decimalPercentual da categoria\n\ncodigo_forma_pagamento string3Código da Forma de Pagamento.+Preenchimento Opcional.Pode ser:TRA - Transferência Bancária.BOL - Pagamento de Boleto.PIX - Transferência via PIX por QR Code. banco_transferencia string3Código do Banco para Transferência Bancária.+Preenchimento obrigatório quando informado \"TRA\" no Código da Forma de Pagamento. agencia_transferencia string10Número da Agência para Transferência Bancária.+Preenchimento obrigatório quando informado \"TRA\" no Código da Forma de Pagamento. conta_corrente_transferencia string25Número da Conta Corrente para Transferência Bancária.+Preenchimento obrigatório quando informado \"TRA\" no Código da Forma de Pagamento. finalidade_transferencia string10Finalidade da transferência.+Preenchimento obrigatório quando informado \"TRA\" no Código da Forma de Pagamento.Verificar código da Finalidade de acordo com o banco vinculado ao c\n\n---\n\n### Source: https://app.omie.com.br/api/v1/produtos/notaentrada/\n\n# NotaEntrada\n\n# Métodos\n\n# AlterarNotaEnt\n\n# ConsultarNotaEnt\n\n# ExcluirNotaEnt\n\n# IncluirNotaEnt\n\n# ListarNotaEnt\n\n# StatusNotaEnt\n\n# Tipos Complexos\n\n# CBS\n\n# COFINS\n\n# DeducaoCanaAc\n\n# DeducaoCanaAcArray\n\n# IBS\n\n# IBS_CBS\n\n# ICMS\n\n# ICMS_INTER\n\n# ICMS_SN\n\n# ICMS_ST\n\n# IPI\n\n# ListaNfe\n\n# ListaNfeArray\n\n# PIS\n\n# QtdDiariaCanaAc\n\n# QtdDiariaCanaAcArray\n\n# TRIB_REG\n\n# cabec\n\n# combustivel\n\n# custos\n\n# departamentos\n\n# email\n\n# frete\n\n# infAdic\n\n# infAdicFisco\n\n# infAdicItem\n\n# infCanaAcucar\n\n# lote_validade\n\n# lote_validadeArray\n\n# medicamentos\n\n# mensagens\n\n# mensagensArray\n\n# neAlterarRequest\n\n# neAlterarResponse\n\n# neConsultarRequest\n\n# neConsultarResponse\n\n# neExcluirRequest\n\n# neExcluirResponse\n\n# neIncluirRequest\n\n# neIncluirResponse\n\n# neListarRequest\n\n# neListarResponse\n\n# neStatusRequest\n\n# neStatusResponse\n\n# nfRelacionada\n\n# notas\n\n# notasArray\n\n# nrCupomFiscal\n\n# nrCupomFiscalArray\n\n# nrModelo1_1A\n\n# nrModelo1_1AArray\n\n# nrNF\n\n# nrNFArray\n\n# nrProdutorRural\n\n# nrProdutorRuralArray\n\n# obs\n\n# omie_fail\n\n# outrasInfVeiculo\n\n# outrosDet\n\n# pinturaCor\n\n# potenciaMotor\n\n# produtos\n\n# produtosArray\n\n# rastreabilidade\n\n# totais\n\n# veiculos\n\n# Métodos\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/?WSDL\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/?WSDL\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/?WSDL\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/?PHPSOAPCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/?PHPSOAPCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/?PHPSOAPCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/?PHPJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/?PHPJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/?PHPJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/?JSJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/?JSJSONCLIENT\n```\n\n```\nhttps://app.omie.com.br/api/v1/produtos/notaentrada/?JSJSONCLIENT\n```\n\n```\n{ \"cabec\": { \"cCodIntNotaEnt\": \"NE1780454668\", \"dPrevisao\": \"02/06/2026\", \"nCodCli\": 2370765 }, \"infAdic\": { \"cCodCateg\": \"2.01.03\" }, \"produtos\": [ { \"cCodItInt\": \"IT1780454668\", \"nCodProd\": 426738565, \"nQtde\": 1, \"nValUnit\": 100, \"cCFOP\": \"1.152\" } ]}\n```\n\n```\n{ \"nCodNotaEnt\" : 0, \"cCodIntNotaEnt\" : \"\"}\n```\n\n```\n{ \"nCodNotaEnt\" : 0, \"cCodIntNotaEnt\" : \"\"}\n```\n\n```\n{ \"cabec\": { \"cCodIntNotaEnt\": \"NE1780454668\", \"dPrevisao\": \"02/06/2026\", \"nCodCli\": 2370765 }, \"infAdic\": { \"cCodCateg\": \"2.01.03\" }, \"produtos\": [ { \"cCodItInt\": \"IT1780454668\", \"nCodProd\": 426738565, \"codigo_local_estoque\": 464449588, \"nQtde\": 1, \"nValUnit\": 100, \"cCFOP\": \"1.152\", \"PIS\":{ \"cSitTribPIS\":\"50\" }, \"COFINS\":{ \"cSitTribCOFINS\":\"01\" } } ]}\n```\n\n```\n{ \"nPagina\": 1, \"nRegistrosPorPagina\": 50}\n```\n\n```\n{ \"nCodNotaEnt\" : 0, \"cCodIntNotaEnt\" : \"\"}\n```\n\nneAlterarRequest neAlterarRequestSolicitação de alteração da nota de entrada\n\nneConsultarRequest neConsultarRequestSolicitação de consulta da nota de entrada\n\nneExcluirRequest neExcluirRequestSolicitação de exclusão da nota de entrada\n\nneIncluirRequest neIncluirRequestSolicitação de inclusão da nota de entrada\n\nneListarRequest neListarRequestSolicitação de listagem da nota de entrada\n\nneStatusRequest neStatusRequestSolicitação de consulta do status da nota de entrada\n\nnAliqCbs decimalAlíquota da CBS. nPercDiferimentoCbs decimalPercentual do diferimento - CBS. nPercReducaoCbs decimalPercentual da redução de alíquota - CBS. nValDiferimentoCbs decimalValor do diferimento - CBS.+Não deve ser informado na Inclusão/Alteração. Campo disponível apenas para consulta.Para os métodos de inclusão e alteração, esse campo será calculado automaticamente. nValCbs decimalValor da CBS.+Não deve ser informado na Inclusão/Alteração. Campo disponível apenas para consulta.Para os métodos de inclusão e alteração, esse campo será calculado automaticamente.\n\ncSitTribCOFINS string2Situação Tributária do COFINS cTpCalcCOFINS string1Tipo de Cálculo para obter o COFINS nBCCOFINS decimalBase de Cálculo do COFINS nAliqCOFINS decimalAlíquota do COFINS (%) nQtdUTCOFINS decimalQtd Unidades Tributáveis nVaCOFINSSUT decimalValor do COFINS Unid. Tributável nValCOFINS decimalValor do COFINS nPercRedBCCOFINS decimalPercentual de Redução da Base de Cálculo do COFINS\n\ncDescrDed textDescrição da dedução na aquisição de cana-de-açúcar nValorDed decimalValor da dedução\n\nnAliqIbsUf decimalAlíquota do IBS de competência das UF.+ nPercDiferimentoIbsUf decimalPercentual do Diferimento - IBS UF. nPercReducaoIbsUf decimalPercentual da redução de alíquota - IBS UF.+ nValDiferimentoIbsUf decimalValor do Diferimento - IBS UF.+Não deve ser informado na Inclusão/Alteração. Campo disponível apenas para consulta.Para os métodos de inclusão e alteração, esse campo será calculado automaticamente. nValIbsUf decimalValor do IBS de competência da UF.+Não deve ser informado na Inclusão/Alteração. Campo disponível apenas para consulta.Para os métodos de inclusão e alteração, esse campo será calculado automaticamente. nAliqIbsMun decimalAlíquota do IBS de competência do Município. nPercDiferimentoIbsMun decimalPercentual do diferimento - UBS Município.+ nPercReducaoIbsMun decimalPercentual da redução de alíquota - IBS Município. nValDiferimentoIbsMun decimalValor do Diferimento - IBS Município.+Não deve ser informado na Inclusão/Alteração. Campo disponível apenas para consulta.Para os métodos de inclusão e alteração, esse campo será calculado automaticamente. nValIbsMun decimalValor do IBS de competência do Município.+Não deve ser informado na Inclusão/Alteração. Campo disponível apenas para consulta.Para os métodos de inclusão e alteração, esse campo será calculado automaticamente. nValIbs decimalValor total do IBS.+Não deve ser i",
+    "entityExamples": {
+      "customers": {
+        "envelope": "clientes_cadastro",
+        "responseExample": "{\"codigo_cliente_integracao\":\"CodigoInterno0001\",\"email\":\"primeiro@cliente.com.br\",\"nome_fantasia\":\"Primeiro Cliente\",\"razao_social\":\"Primeiro Cliente Ltda Me\"}"
+      },
+      "receivables": {
+        "envelope": "conta_receber_cadastro",
+        "responseExample": ""
+      },
+      "payables": {
+        "envelope": "conta_pagar_cadastro",
+        "responseExample": "{ \"codigo_lancamento_integracao\": \"1780455587\", \"codigo_cliente_fornecedor\": 4214850, \"data_vencimento\": \"02/06/2026\", \"valor_documento\": 100.00, \"codigo_categoria\": \"2.04.01\", \"data_previsao\": \"02/06/2026\", \"id_conta_corrente\": 4243124 }"
+      },
+      "invoices": {
+        "envelope": "notas",
+        "responseExample": ""
+      }
+    }
+  },
+  "mapping": {
+    "entityMappings": {
+      "invoices": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/produtos/notaentrada/",
+          "action": "ListarNotaEnt",
+          "queryParams": [],
+          "bodyParams": []
+        },
+        "envelope": "notas",
+        "dePara": {
+          "external_id": [
+            "codigo_lancamento_integracao"
+          ],
+          "customer_name": [
+            "codigo_cliente_fornecedor"
+          ],
+          "issue_date": [
+            "data_previsao"
+          ],
+          "gross_amount": [
+            "valor_documento"
+          ]
+        }
+      },
+      "receivables": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/financas/contareceber/",
+          "action": "ListarContasReceber",
+          "queryParams": [],
+          "bodyParams": []
+        },
+        "envelope": "conta_receber_cadastro",
+        "dePara": {
+          "external_id": [
+            "codigo_lancamento_integracao"
+          ],
+          "customer_name": [
+            "codigo_cliente_fornecedor"
+          ],
+          "issue_date": [
+            "data_previsao"
+          ],
+          "due_date": [
+            "data_vencimento"
+          ],
+          "gross_amount": [
+            "valor_documento"
+          ],
+          "paid_amount": [
+            "valor_documento"
+          ],
+          "document_type": [
+            "codigo_categoria"
+          ],
+          "document_number": [
+            "codigo_lancamento_integracao"
+          ]
+        }
+      },
+      "payables": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/financas/contapagar/",
+          "action": "ListarContasPagar",
+          "queryParams": [],
+          "bodyParams": []
+        },
+        "envelope": "conta_pagar_cadastro",
+        "dePara": {
+          "external_id": [
+            "codigo_lancamento_integracao"
+          ],
+          "supplier_name": [
+            "codigo_cliente_fornecedor"
+          ],
+          "issue_date": [
+            "data_previsao"
+          ],
+          "due_date": [
+            "data_vencimento"
+          ],
+          "gross_amount": [
+            "valor_documento"
+          ],
+          "paid_amount": [
+            "valor_documento"
+          ],
+          "document_type": [
+            "codigo_categoria"
+          ],
+          "document_number": [
+            "codigo_lancamento_integracao"
+          ],
+          "category": [
+            "codigo_categoria"
+          ]
+        }
+      },
+      "customers": {
+        "endpoint": {
+          "method": "POST",
+          "path": "/geral/clientes/",
+          "action": "ListarClientes",
+          "queryParams": [],
+          "bodyParams": []
+        },
+        "envelope": "clientes_cadastro",
+        "dePara": {
+          "external_id": [
+            "codigo_cliente_integracao",
+            "codigo_cliente_omie"
+          ],
+          "name": [
+            "razao_social",
+            "nome_fantasia"
+          ],
+          "document": [
+            "cnpj_cpf"
+          ],
+          "email": [
+            "email"
+          ],
+          "phone": [
+            "codigo_cliente_integracao"
+          ],
+          "city": [
+            "codigo_cliente_integracao"
+          ],
+          "state": [
+            "codigo_cliente_integracao"
+          ]
+        }
+      }
+    }
+  }
+}

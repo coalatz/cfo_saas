@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `erp_configs` ADD `oauthState` varchar(128);\nALTER TABLE `erp_configs` ADD `refreshToken` text;\nALTER TABLE `erp_configs` ADD `tokenExpiresAt` timestamp;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user w9DMdsWEQQcUHxe.f5f47b6c8efc --database Mkv3sM4xeYA6GFr5HNLUdg --execute ALTER TABLE `erp_configs` ADD `oauthState` varchar(128);\nALTER TABLE `erp_configs` ADD `refreshToken` text;\nALTER TABLE `erp_configs` ADD `tokenExpiresAt` timestamp;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 820
+}

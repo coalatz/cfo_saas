@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `agent_model_configs` ADD CONSTRAINT `uniq_tenant_agent` UNIQUE(`tenantId`,`agentName`);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user w9DMdsWEQQcUHxe.f5f47b6c8efc --database Mkv3sM4xeYA6GFr5HNLUdg --execute ALTER TABLE `agent_model_configs` ADD CONSTRAINT `uniq_tenant_agent` UNIQUE(`tenantId`,`agentName`);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 457
+}

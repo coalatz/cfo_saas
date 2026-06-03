@@ -1,0 +1,1 @@
+ALTER TABLE `agent_model_configs` ADD CONSTRAINT `uniq_tenant_agent` UNIQUE(`tenantId`,`agentName`);

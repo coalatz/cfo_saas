@@ -1,0 +1,196 @@
+{
+  "erpName": "conta_azul",
+  "discovery": {
+    "authType": "OAuth2 Bearer Token",
+    "baseUrl": "https://api.contaazul.com",
+    "endpoints": [
+      {
+        "method": "GET",
+        "path": "/v1/autenticacao/token",
+        "description": "Obter token de acesso",
+        "queryParams": [],
+        "bodyParams": [],
+        "action": "ObterToken"
+      },
+      {
+        "method": "POST",
+        "path": "/v1/autenticacao/token",
+        "description": "Trocar código pelo token de acesso",
+        "queryParams": [],
+        "bodyParams": [
+          "codigo"
+        ],
+        "action": "TrocarCodigo"
+      },
+      {
+        "method": "POST",
+        "path": "/v1/autenticacao/token/refresh",
+        "description": "Renovar token de acesso",
+        "queryParams": [],
+        "bodyParams": [
+          "refresh_token"
+        ],
+        "action": "RenovarToken"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/financeiro/cobranca/parcela/{id}",
+        "description": "Consultar parcela por ID",
+        "queryParams": [
+          "rateio",
+          "categoria",
+          "centro_custo"
+        ],
+        "bodyParams": [],
+        "action": "ConsultarParcela"
+      }
+    ],
+    "paginationStrategy": "Não há paginação",
+    "paginationParams": {},
+    "dateParams": {},
+    "responseEnvelopes": [
+      "token",
+      "parcela"
+    ],
+    "description": "API para autenticação e consulta de parcelas",
+    "docSource": "live",
+    "docUrl": "https://developers.contaazul.com/aboutapis",
+    "rawDocText": "### 🌐 Introdução às APIs Conta Azul\nSource: https://developers.contaazul.com/aboutapis\n\n## 🌐 Introdução às APIs Conta AzulCopyCopy for LLMCopy page as Markdown for LLMsView as MarkdownOpen this page as MarkdownOpen in ChatGPTGet insights from ChatGPTOpen in ClaudeGet insights from ClaudeConnect to CursorInstall MCP server on CursorConnect to VS CodeInstall MCP server on VS Code\n\n- Copy for LLMCopy page as Markdown for LLMs\n- View as MarkdownOpen this page as Markdown\n- Open in ChatGPTGet insights from ChatGPT\n- Open in ClaudeGet insights from Claude\n- Connect to CursorInstall MCP server on Cursor\n- Connect to VS CodeInstall MCP server on VS Code\nAs APIs da Conta Azul permitem integrar sistemas externos ao ERP Conta Azul de forma segura, padronizada e escalável.Elas oferecem recursos para automatizar processos financeiros, vendas, cadastros de clientes e fornecedores, produtos e notas fiscais, facilitando a sincronização de dados.\n\n## 🚀 O que você pode fazer com nossas APIs\n\nCom as APIs Conta Azul, é possível:\n- Integrar sistemas parceiros (BI, CRM, e-commerce, etc.);\n- Automatizar lançamentos de contas a pagar e receber;\n- Consultar informações financeiras e contábeis em tempo real;\n- Criar e manter cadastros de clientes, produtos e serviços sempre atualizados;\n- Consultar notas fiscais eletrônicas (somente produtos NFe) - Em breve Serviços (NFS-e)\n\n## 🧭 Estrutura Geral das APIs\n\nA documentação das APIs Conta Azul está organizada por áreas funcionais.Abaixo, você encontra uma visão geral com o propósito de cada uma e links diretos para os respectivos guias técnicos.\nÁrea\nDescrição\nExemplo de Uso\nLink\n🔐 Autenticação\nAPIs para autenticação via OAuth2, geração de credenciais e acesso a metadados.\nCriar uma aplicação e obter tokens de acesso às APIs.\nVer documentação\n💰 Financeiro / Cobranças / Baixas\nControle completo de contas a pagar e receber, baixas, conciliações, cobranças e despesas.\nAutomatizar a baixa de títulos e conciliação de pagamentos.\nVer documentação\n🧾 Vendas\nCriação, atualização e consulta de vendas.\nCriar uma venda e replicar automaticamente na Conta Azul.\nVer documentação\n👥 Pessoas / Fornecedores\nCadastro e consulta de clientes, fornecedores .\nSincronizar automaticamente clientes entre sistemas.\nVer documentação\n📦 Produtos e Serviços\nGerenciamento de produtos e serviços: criação, atualização, estoque e valores.\nIntegrar catálogo de produtos do e-commerce com o ERP.\nVer documentação\n🧮 Notas Fiscais\nConsulta de notas fiscais de produtos e serviços.\nConsultar NFe emitidas\nVer documentação\n📑 Contratos\nGestão de contratos recorrentes.\nControlar contratos mensais e alocar despesas por centro de custo.\nVer documentação\n\n## ⚙️ Padrões Técnicos\n\n- Estilo: REST\n- Formato: JSON\n- Autenticação: OAuth 2.0\n- Códigos de retorno: HTTP padrão (200, 400, 401, 404, 429, 500)\n```\n200\n```\n\n```\n400\n```\n\n```\n401\n```\n\n```\n404\n```\n\n```\n429\n```\n\n```\n500\n```\n\n- Paginação: parâmetros page e size\n```\npage\n```\n\n```\nsize\n```\n\n- Data/hora: formato ISO 8601 (YYYY-MM-DDTHH:mm:ssZ)\n```\nYYYY-MM-DDTHH:mm:ssZ\n```\n\n## Futuro da API\n\nNo momento, algumas funcionalidades importantes ainda não estão disponíveis. Estamos constantemente trabalhando para aprimorar e expandir nossas capacidades, mas é importante que você esteja ciente das seguintes características atuais:\n- Ambiente de Homologação (Sandbox): não oferecemos um ambiente de sandbox dedicado. Para testes, você terá acesso a uma conta do desenvolvedor com duração de 30 dias, que pode ser estendida se necessário. Esta conta permite que você valide suas integrações em um ambiente realista\n- Webhooks: atualmente, a API não suporta webhooks, portanto, sua aplicação não receberá notificações automáticas sobre eventos ou mudanças de dados. Para manter seus dados atualizados, será preciso implementar um mecanismo de polling (consultas periódicas à API)\n- SDKs Oficiais: não dispomos de Software Development Kits (SDKs) oficiais para linguagens de programação. Sua integração deverá ser construída diretamente com chamadas HTTP e manipulação de JSON, sem o auxílio de bibliotecas pré-prontas específicas da Conta Azul\n\n## Fale Conosco\n\nPara eventuais dúvidas, a documentação é a sua melhor fonte. Recomendamos a leitura das guias de “OAuth 2.0”, “Guias de Uso” e “Erros Comuns”. Caso enfrente bugs ou indisponibilidades, por favor, entre em contato com o suporte do Chat pelo Portal do Desenvolvedor para tirar dúvidas e obter orientações sobre o uso das APIs.\n\n## Was this helpful?\n\n---\n\n### Autenticação na API da Conta Azul\nSource: https://developers.contaazul.com/auth\n\n- Visão geral\n\n## Autenticação na API da Conta AzulCopyCopy for LLMCopy page as Markdown for LLMsView as MarkdownOpen this page as MarkdownOpen in ChatGPTGet insights from ChatGPTOpen in ClaudeGet insights from ClaudeConnect to CursorInstall MCP server on CursorConnect to VS CodeInstall MCP server on VS Code\n\n- Copy for LLMCopy page as Markdown for LLMs\n- View as MarkdownOpen this page as Markdown\n- Open in ChatGPTGet insights from ChatGPT\n- Open in ClaudeGet insights from Claude\n- Connect to CursorInstall MCP server on Cursor\n- Connect to VS CodeInstall MCP server on VS Code\nEste guia detalha o processo de autenticação utilizando o fluxo Authorization Code do protocolo OAuth 2.0 para integração com a API da Conta Azul, permitindo acesso seguro aos recursos disponíveis.\n\n## Visão Geral do Fluxo OAuth 2.0\n\nA autenticação é o primeiro passo para garantir acesso seguro e autorizado aos recursos da API Conta Azul. O processo segue o padrão OAuth 2.0, utilizando o fluxo Authorization Code, o mais seguro e recomendado para aplicações que acessam dados em nome de um usuário.\nEste guia descreve, de forma detalhada, cada etapa necessária para autenticar sua aplicação, desde a solicitação do código de autorização até o uso do token de acesso.\nAo final, você será capaz de conectar sua aplicação à API da Conta Azul com segurança e boas práticas de integração.\n\n## 🎥 App de DESENVOLVIMENTO\n\nAssista ao vídeo abaixo para acompanhar, de forma prática, o fluxo de autenticação OAuth 2.0 utilizando um app de DESENVOLVIMENTO.\n\n## 🎥 App de PRODUÇÃO\n\nAssista ao vídeo abaixo para acompanhar, de forma prática, o fluxo de criação de credenciais e autenticação OAuth 2.0 utilizando um app de PRODUÇÃO.\n\n## Etapas do processo de autenticação\n\nA autenticação via OAuth 2.0 é composta por 4 etapas principais:\n- Solicitar o código de autorizaçãoInicia o fluxo de autenticação redirecionando o usuário para o login seguro.\nSolicitar o código de autorização\n- Inicia o fluxo de autenticação redirecionando o usuário para o login seguro.\n- Trocar o código pelo token de acesso (access_token)Após o login autorizado, sua aplicação recebe um código que será trocado por tokens de acesso.\nTrocar o código pelo token de acesso (access_token)\n- Após o login autorizado, sua aplicação recebe um código que será trocado por tokens de acesso.\n- Renovar o token de acesso (refresh_token)Quando o token expirar, ele deve ser renovado para continuar acessando os recursos da API.\nRenovar o token de acesso (refresh_token)\n- Quando o token expirar, ele deve ser renovado para continuar acessando os recursos da API.\n- Utilizar o token de acesso nas requisições à APIO token é enviado no cabeçalho de autenticação (Authorization: Bearer) em todas as chamadas.\nUtilizar o token de acesso nas requisições à API\n- O token é enviado no cabeçalho de autenticação (Authorization: Bearer) em todas as chamadas.\n\n## O que você vai aprender neste guia\n\nEntender o fluxo completo de autenticação OAuth 2.0.\nConfigurar corretamente sua aplicação no Portal do Desenvolvedor.\nExecutar as chamadas de autenticação e renovação de token.\nGarantir acesso seguro e contínuo aos endpoints da API Conta Azul.\n\n## Was this helpful?\n\n---\n\n### 📘 Consultar Parcela por ID -- Rateio, Categoria e Centro de Custo\nSource: https://developers.contaazul.com/get-parcela-por-id-rateio-categoria-centro-custo\n\n## 📘 Consultar Parcela por ID -- Rateio, Categoria e Centro"
+  },
+  "mapping": {
+    "entityMappings": {
+      "invoices": {
+        "endpoint": {
+          "method": "GET",
+          "path": "/v1/financeiro/cobranca/parcela/{id}",
+          "action": "ConsultarParcela",
+          "queryParams": [],
+          "bodyParams": []
+        },
+        "envelope": "parcela",
+        "dePara": {
+          "external_id": [
+            "id"
+          ],
+          "customer_name": [
+            "cliente.nome"
+          ],
+          "issue_date": [
+            "dataEmissao"
+          ],
+          "gross_amount": [
+            "valorTotal"
+          ]
+        }
+      },
+      "receivables": {
+        "endpoint": {
+          "method": "GET",
+          "path": "/v1/financeiro/cobranca/parcela/{id}",
+          "action": "ConsultarParcela",
+          "queryParams": [],
+          "bodyParams": []
+        },
+        "envelope": "parcela",
+        "dePara": {
+          "external_id": [
+            "id"
+          ],
+          "customer_name": [
+            "cliente.nome"
+          ],
+          "issue_date": [
+            "dataEmissao"
+          ],
+          "due_date": [
+            "dataVencimento"
+          ],
+          "gross_amount": [
+            "valorTotal"
+          ],
+          "paid_amount": [
+            "valorPago"
+          ],
+          "document_type": [
+            "tipoDocumento"
+          ],
+          "document_number": [
+            "numeroDocumento"
+          ]
+        }
+      },
+      "payables": {
+        "endpoint": {
+          "method": "GET",
+          "path": "/v1/financeiro/cobranca/parcela/{id}",
+          "action": "ConsultarParcela",
+          "queryParams": [],
+          "bodyParams": []
+        },
+        "envelope": "parcela",
+        "dePara": {
+          "external_id": [
+            "id"
+          ],
+          "supplier_name": [
+            "fornecedor.nome"
+          ],
+          "issue_date": [
+            "dataEmissao"
+          ],
+          "due_date": [
+            "dataVencimento"
+          ],
+          "gross_amount": [
+            "valorTotal"
+          ],
+          "paid_amount": [
+            "valorPago"
+          ],
+          "document_type": [
+            "tipoDocumento"
+          ],
+          "document_number": [
+            "numeroDocumento"
+          ],
+          "category": [
+            "categoria"
+          ]
+        }
+      },
+      "customers": {
+        "endpoint": {
+          "method": "GET",
+          "path": "/v1/pessoas/clientes/{id}",
+          "action": "ConsultarCliente",
+          "queryParams": [],
+          "bodyParams": []
+        },
+        "envelope": "cliente",
+        "dePara": {
+          "external_id": [
+            "id"
+          ],
+          "name": [
+            "nome"
+          ],
+          "document": [
+            "documento"
+          ],
+          "email": [
+            "email"
+          ],
+          "phone": [
+            "telefone"
+          ],
+          "city": [
+            "cidade"
+          ],
+          "state": [
+            "estado"
+          ]
+        }
+      }
+    }
+  }
+}

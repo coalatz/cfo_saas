@@ -1,0 +1,62 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1778626675928,
+      "tag": "0000_furry_toad",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1778626831044,
+      "tag": "0001_fantastic_lilith",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1778627878913,
+      "tag": "0002_acoustic_paladin",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1778629802488,
+      "tag": "0003_lowly_menace",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1778631224159,
+      "tag": "0004_yellow_dracula",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1778631617580,
+      "tag": "0005_free_the_fury",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1780351836007,
+      "tag": "0006_fantastic_komodo",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1780446611450,
+      "tag": "0007_mysterious_mentor",
+      "breakpoints": true
+    }
+  ]
+}

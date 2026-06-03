@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `agent_model_configs` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`tenantId` int NOT NULL DEFAULT 0,\n\t`agentName` enum('discovery','mapping','generator','extractor') NOT NULL,\n\t`provider` enum('manus','openai','anthropic') NOT NULL DEFAULT 'manus',\n\t`modelId` varchar(100) NOT NULL DEFAULT 'default',\n\t`temperature` decimal(3,2) DEFAULT '0.10',\n\t`maxTokens` int DEFAULT 2048,\n\t`apiKey` varchar(500),\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `agent_model_configs_id` PRIMARY KEY(`id`)\n);\nALTER TABLE `erp_configs` ADD `docUrl` varchar(1000);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user w9DMdsWEQQcUHxe.f5f47b6c8efc --database Mkv3sM4xeYA6GFr5HNLUdg --execute CREATE TABLE `agent_model_configs` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`tenantId` int NOT NULL DEFAULT 0,\n\t`agentName` enum('discovery','mapping','generator','extractor') NOT NULL,\n\t`provider` enum('manus','openai','anthropic') NOT NULL DEFAULT 'manus',\n\t`modelId` varchar(100) NOT NULL DEFAULT 'default',\n\t`temperature` decimal(3,2) DEFAULT '0.10',\n\t`maxTokens` int DEFAULT 2048,\n\t`apiKey` varchar(500),\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `agent_model_configs_id` PRIMARY KEY(`id`)\n);\nALTER TABLE `erp_configs` ADD `docUrl` varchar(1000);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 723
+}
