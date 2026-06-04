@@ -23,7 +23,6 @@ const AGENT_LABELS: Record<string, { label: string; desc: string; color: string 
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
-  manus: "Manus (padrão)",
   openai: "OpenAI",
   anthropic: "Anthropic",
   groq: "Groq",
@@ -31,7 +30,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 type AgentName = "discovery" | "mapping" | "generator" | "extractor";
-type Provider = "manus" | "openai" | "anthropic" | "groq" | "gemini";
+type Provider = "openai" | "anthropic" | "groq" | "gemini";
 
 function AddConfigForm({
   tenantId,
@@ -41,8 +40,8 @@ function AddConfigForm({
   onSuccess: () => void;
 }) {
   const [agentName, setAgentName] = useState<AgentName>("discovery");
-  const [provider, setProvider] = useState<Provider>("manus");
-  const [modelId, setModelId] = useState("default");
+  const [provider, setProvider] = useState<Provider>("openai");
+  const [modelId, setModelId] = useState("gpt-4o");
   const [temperature, setTemperature] = useState("0.1");
   const [maxTokens, setMaxTokens] = useState("2048");
   const [apiKey, setApiKey] = useState("");
@@ -84,7 +83,15 @@ function AddConfigForm({
 
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Provedor</Label>
-          <Select value={provider} onValueChange={(v) => { setProvider(v as Provider); setModelId("default"); }}>
+          <Select value={provider} onValueChange={(v) => { 
+            setProvider(v as Provider); 
+            const newModels = (AVAILABLE_MODELS as any)[v];
+            if (newModels && newModels.length > 0) {
+              setModelId(newModels[0].id); 
+            } else {
+              setModelId("default");
+            }
+          }}>
             <SelectTrigger className="bg-input border-border text-sm">
               <SelectValue />
             </SelectTrigger>
@@ -147,21 +154,19 @@ function AddConfigForm({
         </div>
       </div>
 
-      {provider !== "manus" && (
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">API Key (opcional — sobrescreve variável de ambiente)</Label>
-          <Input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="sk-..."
-            className="bg-input border-border text-sm font-mono"
-          />
-          <p className="text-xs text-muted-foreground">
-            Deixe em branco para usar a chave configurada nas variáveis de ambiente do servidor.
-          </p>
-        </div>
-      )}
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">API Key (obrigatório caso não tenha configurado no servidor)</Label>
+        <Input
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder="sk-..."
+          className="bg-input border-border text-sm font-mono"
+        />
+        <p className="text-xs text-muted-foreground">
+          Preencha com a sua chave de API para habilitar este agente.
+        </p>
+      </div>
 
       <Button
         onClick={() =>

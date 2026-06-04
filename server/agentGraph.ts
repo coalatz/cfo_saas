@@ -1913,11 +1913,13 @@ export async function runFullPipeline(
     getModelConfig(tenantId, "extractor"),
   ]);
 
+  const firstAvailable = d ?? m ?? g ?? e;
+
   const modelConfigs: Record<string, ModelConfig> = {
-    discovery: d ?? DEFAULT_MODEL_CONFIGS.discovery!,
-    mapping: m ?? DEFAULT_MODEL_CONFIGS.mapping!,
-    generator: g ?? DEFAULT_MODEL_CONFIGS.generator!,
-    extractor: e ?? DEFAULT_MODEL_CONFIGS.extractor!,
+    discovery: d ?? firstAvailable ?? DEFAULT_MODEL_CONFIGS.discovery!,
+    mapping: m ?? firstAvailable ?? DEFAULT_MODEL_CONFIGS.mapping!,
+    generator: g ?? firstAvailable ?? DEFAULT_MODEL_CONFIGS.generator!,
+    extractor: e ?? firstAvailable ?? DEFAULT_MODEL_CONFIGS.extractor!,
   };
 
   const pipelineId = await createPipeline({
