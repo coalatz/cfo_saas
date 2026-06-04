@@ -23,6 +23,7 @@ const AGENT_LABELS: Record<string, { label: string; desc: string; color: string 
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
+  manus: "Manus",
   openai: "OpenAI",
   anthropic: "Anthropic",
   groq: "Groq",
@@ -30,7 +31,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 type AgentName = "discovery" | "mapping" | "generator" | "extractor";
-type Provider = "openai" | "anthropic" | "groq" | "gemini";
+type Provider = "manus" | "openai" | "anthropic" | "groq" | "gemini";
 
 function AddConfigForm({
   tenantId,
@@ -85,7 +86,7 @@ function AddConfigForm({
           <Label className="text-xs text-muted-foreground">Provedor</Label>
           <Select value={provider} onValueChange={(v) => { 
             setProvider(v as Provider); 
-            const newModels = (AVAILABLE_MODELS as any)[v];
+            const newModels = (availableModels as any)[v];
             if (newModels && newModels.length > 0) {
               setModelId(newModels[0].id); 
             } else {
