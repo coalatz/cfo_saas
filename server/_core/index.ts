@@ -65,6 +65,19 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
+  const { getDb } = await import("../db");
+  const { migrate } = await import("drizzle-orm/mysql2/migrator");
+  const dbInstance = await getDb();
+  if (dbInstance) {
+    try {
+      console.log("[DB] Running migrations automatically...");
+      await migrate(dbInstance, { migrationsFolder: "./drizzle" });
+      console.log("[DB] Migrations applied successfully.");
+    } catch (err) {
+      console.error("[DB] Migration failed:", err);
+    }
+  }
+
   // Listen on all interfaces so external tunnels (ngrok/serveo) can reach the server
   server.listen(port, "0.0.0.0", () => {
     console.log(
