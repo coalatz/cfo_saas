@@ -26,10 +26,12 @@ const PROVIDER_LABELS: Record<string, string> = {
   manus: "Manus (padrão)",
   openai: "OpenAI",
   anthropic: "Anthropic",
+  groq: "Groq",
+  gemini: "Google Gemini",
 };
 
 type AgentName = "discovery" | "mapping" | "generator" | "extractor";
-type Provider = "manus" | "openai" | "anthropic";
+type Provider = "manus" | "openai" | "anthropic" | "groq" | "gemini";
 
 function AddConfigForm({
   tenantId,

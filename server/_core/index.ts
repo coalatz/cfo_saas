@@ -32,6 +32,11 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  // Debug endpoint to validate tunnel/public URL reaches this server
+  app.get("/__tunnel_test", (req, res) => {
+    console.log("Tunnel test request from", req.ip, "host:", req.get("host"));
+    res.json({ ok: true, host: req.get("host") });
+  });
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -60,8 +65,11 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  // Listen on all interfaces so external tunnels (ngrok/serveo) can reach the server
+  server.listen(port, "0.0.0.0", () => {
+    console.log(
+      `Server running on http://localhost:${port}/ (listening on 0.0.0.0)`
+    );
   });
 }
 

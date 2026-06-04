@@ -141,8 +141,8 @@ const modelConfigsRouter = router({
   save: publicProcedure
     .input(z.object({
       tenantId: z.number(),
-      agentName: z.enum(["discovery", "mapping", "generator", "extractor"]),
-      provider: z.enum(["manus", "openai", "anthropic"]),
+      agentName: z.enum(["discovery", "mapping", "generator", "generator_mapper", "extractor"]),
+      provider: z.enum(["manus", "openai", "anthropic", "groq", "gemini"]),
       modelId: z.string().min(1).max(100),
       temperature: z.number().min(0).max(2).optional(),
       maxTokens: z.number().min(64).max(32000).optional(),

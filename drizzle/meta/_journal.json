@@ -57,6 +57,13 @@
       "when": 1780446611450,
       "tag": "0007_mysterious_mentor",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1780538298546,
+      "tag": "0008_solid_miek",
+      "breakpoints": true
     }
   ]
 }

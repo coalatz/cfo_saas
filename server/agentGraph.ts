@@ -22,8 +22,17 @@ import * as cheerio from "cheerio";
 import * as path from "path";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
-import { fetchDocumentation, fetchPage, extractUsefulContent } from "./docFetcher";
-import { invokeLLMJson, invokeLLMText, DEFAULT_MODEL_CONFIGS, ModelConfig } from "./llmFactory";
+import {
+  fetchDocumentation,
+  fetchPage,
+  extractUsefulContent,
+} from "./docFetcher";
+import {
+  invokeLLMJson,
+  invokeLLMText,
+  DEFAULT_MODEL_CONFIGS,
+  ModelConfig,
+} from "./llmFactory";
 import {
   createExtractionLog,
   createPipeline,
@@ -52,37 +61,43 @@ export interface EndpointInfo {
 }
 
 export interface DiscoveryResult {
-  authType: string;        // descrição livre: "OAuth2 Bearer", "API Key in body", etc.
+  authType: string; // descrição livre: "OAuth2 Bearer", "API Key in body", etc.
   authFields?: string[];
   baseUrl: string;
   endpoints: EndpointInfo[];
   paginationStrategy: string;
   paginationParams: Record<string, string>; // ex: { pageParam: "pagina", sizeParam: "tamanho_pagina" }
   paginationTermination?: string;
-  dateParams: Record<string, string>;       // ex: { startParam: "data_inicio", endParam: "data_fim" }
-  responseEnvelopes: string[];              // chaves JSON que contêm os arrays
+  dateParams: Record<string, string>; // ex: { startParam: "data_inicio", endParam: "data_fim" }
+  responseEnvelopes: string[]; // chaves JSON que contêm os arrays
   isRpcStyle?: boolean;
   description: string;
-  docSource: "live" | "cache" | "fallback";
+  docSource: "live" | "cache" | "fallback" | "direct_download";
   docUrl: string;
   rawDocText: string; // texto bruto — passado para os próximos agentes
   // Exemplos extraídos do crawl seletivo — envelope e primeiro objeto real por entidade
-  entityExamples?: Record<string, { envelope: string; responseExample: string }>;
+  entityExamples?: Record<
+    string,
+    { envelope: string; responseExample: string }
+  >;
 }
 
 export interface MappingResult {
   // Para cada entidade: qual endpoint usar + como mapear campos
-  entityMappings: Record<EntityType, {
-    endpoint: EndpointInfo;
-    envelope: string;                     // chave JSON que contém o array na resposta
-    dePara: Record<string, string[]>;     // canonical_field → [erp_field1, erp_field2, ...]
-  }>;
+  entityMappings: Record<
+    EntityType,
+    {
+      endpoint: EndpointInfo;
+      envelope: string; // chave JSON que contém o array na resposta
+      dePara: Record<string, string[]>; // canonical_field → [erp_field1, erp_field2, ...]
+    }
+  >;
 }
 
 export interface GeneratorResult {
   // Caminhos dos arquivos JS gerados em disco
-  connectorDir: string;   // ex: "connectors/conta_azul"
-  authFile: string;       // ex: "connectors/conta_azul/auth.js"
+  connectorDir: string; // ex: "connectors/conta_azul"
+  authFile: string; // ex: "connectors/conta_azul/auth.js"
   extractorFile: string;
   mapperFile: string;
 }
@@ -118,7 +133,7 @@ export interface ExtractorResult {
 const PipelineStateAnnotation = Annotation.Root({
   pipelineId: Annotation<number>(),
   tenantId: Annotation<number>(),
-  erpName: Annotation<string>(),     // qualquer string — "conta_azul", "omie", "totvs", etc.
+  erpName: Annotation<string>(), // qualquer string — "conta_azul", "omie", "totvs", etc.
   credentials: Annotation<Record<string, string>>(),
   docUrl: Annotation<string>(),
   modelConfigs: Annotation<Record<string, ModelConfig>>(),
@@ -128,39 +143,687 @@ const PipelineStateAnnotation = Annotation.Root({
   generatorResult: Annotation<GeneratorResult | undefined>(),
   extractorResult: Annotation<ExtractorResult | undefined>(),
   error: Annotation<string | undefined>(),
-  retryCount: Annotation<number>({ reducer: (x, y) => y ?? x, default: () => 0 }),
+  retryCount: Annotation<number>({
+    reducer: (x, y) => y ?? x,
+    default: () => 0,
+  }),
   lastCodeError: Annotation<string | undefined>(),
 });
 
 type PipelineState = typeof PipelineStateAnnotation.State;
 
+// ─── Phase 0: Direct Documentation Download ────────────────────────────────────
+// Tenta baixar doc em formato estruturado (PDF, YAML, JSON, Markdown)
+// antes do crawl seletivo de HTML
+
+const CONTENT_KEYWORDS =
+  /endpoint|api|auth|request|response|method|parameter|query|body|header|pagination|filter|sort|order|limit|page|schema|format|type/i;
+const DOC_EXTENSIONS = /\.(pdf|yaml|yml|json|md|markdown)$/i;
+const MAX_DOWNLOADS_PER_SEEDURL = 3;
+const MAX_TOTAL_DOWNLOADS = 15;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const DOWNLOAD_TIMEOUT = 15000;
+
+async function findDocLinks(pageUrl: string): Promise<string[]> {
+  try {
+    const res = await axios.get(pageUrl, { timeout: 10000 });
+    const $ = cheerio.load(res.data);
+    const links = new Set<string>();
+
+    $("a[href]").each((_, el) => {
+      const href = $(el).attr("href");
+      if (!href) return;
+
+      // Pula links para openapi/swagger (já tratados em Passo 1)
+      if (href.includes("openapi") || href.includes("swagger")) return;
+
+      // Verifica se é uma extensão de interesse
+      if (DOC_EXTENSIONS.test(href)) {
+        try {
+          const absoluteUrl = href.startsWith("http")
+            ? href
+            : new URL(href, pageUrl).toString();
+          links.add(absoluteUrl);
+        } catch {
+          // URL inválida, ignora
+        }
+      }
+    });
+
+    return Array.from(links);
+  } catch (err: any) {
+    console.warn(
+      `[Discovery Phase 0] Falha ao buscar links em ${pageUrl}: ${err.message}`
+    );
+    return [];
+  }
+}
+
+async function downloadAndExtractContent(
+  fileUrl: string
+): Promise<{ content: string; format: string } | null> {
+  try {
+    const res = await axios.get(fileUrl, {
+      timeout: DOWNLOAD_TIMEOUT,
+      responseType: "arraybuffer",
+      maxContentLength: MAX_FILE_SIZE,
+    });
+
+    const buffer = Buffer.from(res.data);
+    const contentType = res.headers["content-type"]?.toLowerCase() || "";
+
+    // Detecta formato pela extensão
+    let format = "unknown";
+    let content = "";
+
+    if (fileUrl.endsWith(".pdf")) {
+      format = "pdf";
+      try {
+        const pdfParse = require("pdf-parse");
+        const data = await pdfParse(buffer);
+        content = data.text;
+      } catch (pdfErr) {
+        console.warn(`[Discovery Phase 0] PDF parse falhou para ${fileUrl}`);
+        return null;
+      }
+    } else if (
+      fileUrl.endsWith(".json") ||
+      contentType.includes("application/json")
+    ) {
+      format = "json";
+      try {
+        const obj = JSON.parse(buffer.toString("utf-8"));
+        // Converte JSON estruturado para texto legível
+        content = JSON.stringify(obj, null, 2);
+      } catch {
+        content = buffer.toString("utf-8");
+      }
+    } else if (
+      fileUrl.match(/\.(yaml|yml)$/i) ||
+      contentType.includes("yaml")
+    ) {
+      format = "yaml";
+      try {
+        const jsYaml = require("js-yaml") as any;
+        const obj = jsYaml.load(buffer.toString("utf-8"));
+        // Converte YAML para JSON string para manter estrutura
+        content = JSON.stringify(obj, null, 2);
+      } catch {
+        content = buffer.toString("utf-8");
+      }
+    } else if (fileUrl.endsWith(".md") || fileUrl.endsWith(".markdown")) {
+      format = "markdown";
+      content = buffer.toString("utf-8");
+    } else {
+      // Tenta como texto genérico
+      format = "text";
+      content = buffer.toString("utf-8");
+    }
+
+    if (!content || content.length < 100) {
+      console.warn(
+        `[Discovery Phase 0] ${fileUrl}: conteúdo muito curto (${content.length} chars)`
+      );
+      return null;
+    }
+
+    return { content, format };
+  } catch (err: any) {
+    console.warn(
+      `[Discovery Phase 0] Falha ao baixar ${fileUrl}: ${err.message}`
+    );
+    return null;
+  }
+}
+
+function validateContent(content: string): boolean {
+  // Valida se contém palavras-chave de API
+  if (!CONTENT_KEYWORDS.test(content)) {
+    return false;
+  }
+  // Deve ter no mínimo 500 chars de conteúdo útil
+  return content.trim().length >= 500;
+}
+
+async function tryDirectDocDownload(
+  seedUrls: string[]
+): Promise<{ rawDocText: string; docSource: "direct_download" } | null> {
+  console.log(
+    `[Discovery Phase 0] Tentando download direto de documentação estruturada...`
+  );
+
+  let totalDownloads = 0;
+
+  for (const seedUrl of seedUrls) {
+    if (totalDownloads >= MAX_TOTAL_DOWNLOADS) {
+      console.log(
+        `[Discovery Phase 0] Limite de downloads (${MAX_TOTAL_DOWNLOADS}) atingido`
+      );
+      break;
+    }
+
+    console.log(`[Discovery Phase 0] Buscando links de doc em ${seedUrl}...`);
+    const docLinks = await findDocLinks(seedUrl);
+
+    if (docLinks.length === 0) {
+      console.log(
+        `[Discovery Phase 0] Nenhum link de doc encontrado em ${seedUrl}`
+      );
+      continue;
+    }
+
+    console.log(
+      `[Discovery Phase 0] Encontrados ${docLinks.length} potenciais docs em ${seedUrl}`
+    );
+
+    // Tenta baixar até MAX_DOWNLOADS_PER_SEEDURL arquivos por seedUrl
+    for (const docLink of docLinks.slice(0, MAX_DOWNLOADS_PER_SEEDURL)) {
+      if (totalDownloads >= MAX_TOTAL_DOWNLOADS) break;
+
+      console.log(`[Discovery Phase 0] Baixando ${docLink}...`);
+      totalDownloads++;
+
+      const result = await downloadAndExtractContent(docLink);
+      if (!result) continue;
+
+      if (validateContent(result.content)) {
+        console.log(
+          `[Discovery Phase 0] ✅ Conteúdo válido encontrado (${result.format}, ${result.content.length} chars)`
+        );
+        return {
+          rawDocText: result.content,
+          docSource: "direct_download",
+        };
+      } else {
+        console.log(
+          `[Discovery Phase 0] ❌ ${docLink}: falhou validação (pouco conteúdo ou sem palavras-chave)`
+        );
+      }
+    }
+  }
+
+  console.log(
+    `[Discovery Phase 0] Nenhum documento válido encontrado via download direto`
+  );
+  return null;
+}
+
 // ─── Node 1: Discovery ─────────────────────────────────────────────────────────
 // Única responsabilidade: ler a doc da URL e extrair estrutura da API
 
-async function discoveryNode(state: PipelineState): Promise<Partial<PipelineState>> {
+async function discoveryNode(
+  state: PipelineState
+): Promise<Partial<PipelineState>> {
   const { erpName, docUrl, modelConfigs, pipelineId } = state;
   const config = modelConfigs.discovery ?? DEFAULT_MODEL_CONFIGS.discovery!;
 
-  await updatePipeline(pipelineId, { currentStep: "discovery", status: "running" });
+  await updatePipeline(pipelineId, {
+    currentStep: "discovery",
+    status: "running",
+  });
 
-  let rawDocText = "";
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ESTRATÉGIA DE ACUMULAÇÃO: Executa todas as fases, acumula conteúdo
+  // Critério de parada:
+  //   - OpenAPI encontrado → PARA imediatamente (melhor caso)
+  //   - Demais phases: continua até cobrir 4 entidades OU 32k chars OU esgotar strategies
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  let accumulatedText = "";
+  const MAX_ACCUMULATED_CHARS = 32768; // 32KB
+  const neededEntities = ["invoices", "receivables", "payables", "customers"];
+  const foundEntities = new Set<string>();
+  const entityExamples: Record<
+    string,
+    { envelope: string; responseExample: string }
+  > = {};
   let docSource: DiscoveryResult["docSource"] = "fallback";
 
-  // ── Passo 1: Tenta OpenAPI/Swagger — zero LLM se funcionar ──────────────────
+  console.log(
+    `[Discovery] Iniciando acumulação de conteúdo para ${erpName}...`
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PHASE 1: OpenAPI/Swagger — PARA se encontrar (melhor case scenario)
+  // ─────────────────────────────────────────────────────────────────────────────
+  console.log(`[Discovery] PHASE 1: Procurando OpenAPI/Swagger...`);
+  try {
+    const openApiResult = await tryOpenApiPhaseAccumulation(docUrl, erpName);
+    if (openApiResult.found) {
+      // OpenAPI encontrado — PARA aqui, não precisa de mais nada
+      await updatePipeline(pipelineId, {
+        discoveryResult: openApiResult.result as any,
+        currentStep: "mapping",
+      });
+      console.log(
+        `[Discovery] ✅ PHASE 1 OpenAPI encontrado — PARANDO (${openApiResult.result!.endpoints.length} endpoints)`
+      );
+      return { discoveryResult: openApiResult.result };
+    }
+  } catch (err) {
+    console.warn(`[Discovery] PHASE 1 (OpenAPI) falhou:`, (err as any).message);
+  }
+
+  console.log(
+    `[Discovery] PHASE 1: OpenAPI não encontrado, continuando acumulação...`
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PHASE 2: Download direto de documentação estruturada (.pdf, .yaml, .json, .md)
+  // ─────────────────────────────────────────────────────────────────────────────
+  console.log(`[Discovery] PHASE 2: Tentando download direto de docs...`);
+  try {
+    let initialSeedUrls = [docUrl];
+    try {
+      const { fetchRootHtml, extractLinksWithText } = await import(
+        "./docFetcher.js"
+      );
+      const rootHtml = await fetchRootHtml(docUrl);
+      const links = extractLinksWithText(rootHtml, docUrl);
+      if (links.length > 0) {
+        initialSeedUrls = initialSeedUrls.concat(
+          links.slice(0, 10).map(l => l.href)
+        );
+      }
+    } catch {
+      // Continua com docUrl
+    }
+
+    const directResult = await tryDirectDocDownload(initialSeedUrls);
+    if (directResult && directResult.rawDocText?.length > 0) {
+      accumulatedText += directResult.rawDocText;
+      docSource = directResult.docSource;
+      console.log(
+        `[Discovery] PHASE 2 ✅: Download direto bem-sucedido (${directResult.rawDocText.length} chars acumulados)`
+      );
+    }
+  } catch (err) {
+    console.warn(`[Discovery] PHASE 2 (Download direto) falhou:`, err);
+  }
+
+  // Critério de parada intermediário: OpenAPI encontrado nos seedUrls
+  if (accumulatedText.length === 0) {
+    console.log(
+      `[Discovery] PHASE 2: Nenhum doc direto encontrado, continuando...`
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PHASE 3: Extração de sementes e crawl seletivo com intenção
+  // ─────────────────────────────────────────────────────────────────────────────
+  console.log(`[Discovery] PHASE 3: Crawl seletivo com LLM guidance...`);
+  let seedUrls: string[] = [docUrl];
+
+  try {
+    // Extrai sementes iniciais
+    const { fetchRootHtml, extractLinksWithText } = await import(
+      "./docFetcher.js"
+    );
+    const rootHtml = await fetchRootHtml(docUrl);
+    const links = extractLinksWithText(rootHtml, docUrl);
+
+    if (links.length > 0) {
+      const sampleLinks = links.slice(0, 200);
+      try {
+        const filteredUrls = await invokeLLMJson<string[]>(
+          config,
+          `You are an API documentation architect.`,
+          `The ERP system is "${erpName}".
+We need endpoints for: invoices, receivables, payables, customers, orders, billing.
+Links from root page:
+${JSON.stringify(sampleLinks)}
+
+Return up to 10 URLs (most likely module entry points).
+Return ONLY valid JSON array of strings, no explanation.`
+        );
+        if (Array.isArray(filteredUrls) && filteredUrls.length > 0) {
+          seedUrls = filteredUrls;
+          console.log(
+            `[Discovery] PHASE 3: ${seedUrls.length} sementes selecionadas`
+          );
+        }
+      } catch {
+        console.log(`[Discovery] PHASE 3: LLM de sementes falhou, usando raiz`);
+      }
+    }
+  } catch (err) {
+    console.warn(`[Discovery] PHASE 3: Extração de sementes falhou:`, err);
+  }
+
+  // Tenta rapidamente OpenAPI nas seedUrls
+  try {
+    for (const url of seedUrls) {
+      try {
+        const probe = await axios.get(url, {
+          timeout: 5000,
+          headers: { Accept: "application/json" },
+        });
+        if (probe.data?.paths || probe.data?.swagger || probe.data?.openapi) {
+          console.log(
+            `[Discovery] ✅ OpenAPI detectado em seedUrl: ${url} — PARANDO`
+          );
+          const openApiResult = await buildOpenApiResult(
+            probe.data,
+            erpName,
+            docUrl
+          );
+          await updatePipeline(pipelineId, {
+            discoveryResult: openApiResult as any,
+            currentStep: "mapping",
+          });
+          return { discoveryResult: openApiResult };
+        }
+      } catch {
+        // Continua
+      }
+    }
+  } catch (err) {
+    console.warn(
+      `[Discovery] PHASE 3: Tentativa rápida de OpenAPI falhou:`,
+      err
+    );
+  }
+
+  // Crawl seletivo nas seedUrls
+  try {
+    for (const url of seedUrls) {
+      // Critério de parada: cobriu todas as entidades OU atingiu limite de chars
+      if (foundEntities.size === neededEntities.length) {
+        console.log(
+          `[Discovery] PHASE 3: ✅ Todas as ${neededEntities.length} entidades cobertas — PARANDO crawl`
+        );
+        break;
+      }
+      if (accumulatedText.length >= MAX_ACCUMULATED_CHARS) {
+        console.log(
+          `[Discovery] PHASE 3: ✅ Limite de chars (${accumulatedText.length}) atingido — PARANDO crawl`
+        );
+        break;
+      }
+
+      let pageContent = "";
+      try {
+        const pageResult = await fetchPage(url);
+        if (!pageResult) continue;
+        pageContent = extractUsefulContent(pageResult.html);
+
+        // Fallback: Playwright se fetchPage retornar <50 chars
+        if (pageContent.length < 50) {
+          try {
+            const { fetchRootHtml } = await import("./docFetcher.js");
+            const playwrightHtml = await fetchRootHtml(url);
+            const playwrightContent = extractUsefulContent(playwrightHtml);
+            if (playwrightContent.length >= 50) {
+              pageContent = playwrightContent;
+            } else {
+              continue;
+            }
+          } catch {
+            continue;
+          }
+        }
+      } catch {
+        continue;
+      }
+
+      if (pageContent.length < 50) continue;
+
+      // LLM: página cobre alguma entidade faltante?
+      try {
+        const remaining = neededEntities.filter(e => !foundEntities.has(e));
+        if (remaining.length === 0) break; // Todas as entidades já foram cobertas
+
+        const verdict = await invokeLLMJson<{
+          useful: boolean;
+          covers: string[];
+          envelope?: string;
+          responseExample?: string;
+        }>(
+          config,
+          `You are an API documentation analyst. Answer ONLY with valid JSON.`,
+          `Does this documentation contain LIST/GET endpoints for any of: ${remaining.join(", ")}?
+
+Return format:
+{
+  "useful": true,
+  "covers": ["entity"],
+  "envelope": "exact JSON key with records array",
+  "responseExample": "first record object as JSON string, or empty"
+}
+
+CRITICAL: covers MUST be from ["invoices", "receivables", "payables", "customers"] ONLY.
+Map: notas fiscais/sales orders → invoices; contas a receber → receivables; contas a pagar → payables; clientes → customers
+
+Page: ${url}
+Content:
+${pageContent.slice(0, 3000)}`
+        );
+
+        const VALID_ENTITIES = new Set([
+          "invoices",
+          "receivables",
+          "payables",
+          "customers",
+        ]);
+        const validCovers = (verdict.covers ?? []).filter(e =>
+          VALID_ENTITIES.has(e)
+        );
+
+        if (verdict.useful && validCovers.length > 0) {
+          // ACUMULA conteúdo desta página
+          accumulatedText += `\n\n### Source: ${url}\n\n${pageContent}`;
+          validCovers.forEach(e => {
+            foundEntities.add(e);
+            if (!entityExamples[e]) {
+              entityExamples[e] = {
+                envelope: verdict.envelope ?? "",
+                responseExample: verdict.responseExample ?? "",
+              };
+            }
+          });
+          console.log(
+            `[Discovery] PHASE 3 ✅: ${url} → [${validCovers.join(", ")}] (${foundEntities.size}/${neededEntities.length}, ${accumulatedText.length} chars)`
+          );
+        } else {
+          console.log(`[Discovery] PHASE 3: ${url} → não útil`);
+        }
+      } catch (llmErr) {
+        console.warn(
+          `[Discovery] PHASE 3 LLM: ${url} falhou`,
+          (llmErr as any)?.message
+        );
+        // Em caso de erro, inclui por precaução (acumula sempre)
+        accumulatedText += `\n\n### Source: ${url}\n\n${pageContent}`;
+      }
+    }
+  } catch (err) {
+    console.warn(`[Discovery] PHASE 3 (Crawl seletivo) falhou:`, err);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PHASE 4: Fallback crawl tradicional (apenas se ainda faltam entidades)
+  // ─────────────────────────────────────────────────────────────────────────────
+  const remainingAfterPhase3 = neededEntities.filter(
+    e => !foundEntities.has(e)
+  );
+  if (
+    remainingAfterPhase3.length > 0 &&
+    accumulatedText.length < MAX_ACCUMULATED_CHARS
+  ) {
+    console.log(
+      `[Discovery] PHASE 4: Fallback crawl tradicional (faltam: ${remainingAfterPhase3.join(", ")})...`
+    );
+    try {
+      const fetched = await fetchDocumentation(docUrl, seedUrls);
+      if (fetched.combinedText && fetched.combinedText.length > 200) {
+        accumulatedText += `\n\n### Fallback crawl tradicional\n\n${fetched.combinedText}`;
+        docSource = fetched.source as DiscoveryResult["docSource"];
+        console.log(
+          `[Discovery] PHASE 4 ✅: ${fetched.pages.length} páginas (+${fetched.combinedText.length} chars)`
+        );
+      }
+    } catch (err) {
+      console.warn(`[Discovery] PHASE 4 (Fallback crawl) falhou:`, err);
+    }
+  } else {
+    console.log(
+      `[Discovery] PHASE 4: Pulando fallback (entidades: ${foundEntities.size}, chars: ${accumulatedText.length})`
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PHASE 5: LLM com TODO conteúdo acumulado
+  // ─────────────────────────────────────────────────────────────────────────────
+  console.log(
+    `[Discovery] PHASE 5: LLM com ${accumulatedText.length} chars acumulados...`
+  );
+
+  const systemPrompt = `You are a senior API integration engineer specialized in ERP systems.
+
+Extract a precise API structure from raw documentation.
+
+Rules:
+- If documentation lacks details, use pre-trained ERP knowledge to fill auth/endpoints.
+- For auth: describe EXACTLY what credentials + WHERE they go.
+- For pagination: describe EXACTLY the END condition (e.g., "stop when array length < page_size").
+- RPC APIs: method=POST with action field.
+- ONLY extract LIST/GET endpoints for bulk reads (ListarClientes, Search Invoices, etc.).
+- NEVER extract CREATE/UPDATE/DELETE or single-item lookups.
+- Extract EXACT paths relative to baseUrl.
+- Return ONLY valid JSON.
+
+CRITICAL: If entityExamples are provided below, use them to determine envelope keys and field names.
+Do NOT invent. Use ONLY field names visible in responseExample or mentioned in documentation.`;
+
+  const buildExamplesSection = (): string => {
+    if (Object.keys(entityExamples).length === 0) return "";
+    const lines = Object.entries(entityExamples).map(([entity, data]) => {
+      return `${entity}: envelope="${data.envelope}", example=${
+        data.responseExample && data.responseExample.trim().length > 2
+          ? data.responseExample.slice(0, 200)
+          : "(not in docs — search for this envelope in DOCUMENTATION EXCERPT)"
+      }`;
+    });
+    return `\n\nENTITY EXAMPLES (SOURCE OF TRUTH):\n${lines.join("\n")}\n`;
+  };
+
+  const userPrompt = `ERP: "${erpName}"
+Documentation URL: ${docUrl}
+${buildExamplesSection()}
+
+RAW DOCUMENTATION:
+${accumulatedText || "(fetch failed — use ERP pre-trained knowledge)"}
+
+Return JSON:
+{
+  "authType": "full description of credentials + where they go",
+  "authFields": ["credential field names"],
+  "baseUrl": "https://...",
+  "endpoints": [
+    {
+      "method": "GET|POST",
+      "path": "/endpoint/path",
+      "description": "what entity",
+      "queryParams": ["param1"],
+      "bodyParams": ["param1"],
+      "action": "RPC action name if applicable"
+    }
+  ],
+  "paginationStrategy": "exact pagination method",
+  "paginationParams": {
+    "pageParam": "exact param name",
+    "sizeParam": "exact param name",
+    "defaultPageSize": 50
+  },
+  "paginationTermination": "exact stop condition",
+  "dateParams": {
+    "startParam": "exact param name",
+    "endParam": "exact param name",
+    "dateFormat": "YYYY-MM-DD or DD/MM/YYYY"
+  },
+  "responseEnvelopes": ["exact JSON keys"],
+  "isRpcStyle": false,
+  "description": "1-2 sentence summary"
+}`;
+
+  try {
+    const result = await invokeLLMJson<
+      Omit<DiscoveryResult, "docSource" | "docUrl" | "rawDocText">
+    >(config, systemPrompt, userPrompt);
+
+    const discoveryResult: DiscoveryResult = {
+      authType: result.authType || "unknown",
+      authFields: result.authFields || [],
+      baseUrl: result.baseUrl || docUrl,
+      endpoints: Array.isArray(result.endpoints) ? result.endpoints : [],
+      paginationStrategy: result.paginationStrategy || "",
+      paginationParams: result.paginationParams || {},
+      paginationTermination:
+        result.paginationTermination || "response array length is 0",
+      dateParams: result.dateParams || {},
+      responseEnvelopes: result.responseEnvelopes || [],
+      isRpcStyle: result.isRpcStyle || false,
+      description: result.description || "",
+      docSource,
+      docUrl,
+      rawDocText: accumulatedText,
+      entityExamples,
+    };
+
+    await updatePipeline(pipelineId, {
+      discoveryResult: discoveryResult as any,
+    });
+    console.log(
+      `[Discovery] ✅ OK — auth: ${discoveryResult.authType} | endpoints: ${discoveryResult.endpoints.length} | entities found: [${Array.from(foundEntities).join(", ")}]`
+    );
+    return { discoveryResult };
+  } catch (err: any) {
+    console.error("[Discovery] PHASE 5 (LLM) falhou:", err.message);
+    return {
+      discoveryResult: {
+        authType: "unknown",
+        authFields: [],
+        baseUrl: docUrl,
+        endpoints: [],
+        paginationStrategy: "",
+        paginationParams: {},
+        paginationTermination: "stop when array is empty",
+        dateParams: {},
+        responseEnvelopes: [],
+        isRpcStyle: false,
+        description: "discovery failed",
+        docSource: "fallback",
+        docUrl,
+        rawDocText: accumulatedText,
+      },
+    };
+  }
+}
+
+// ─── Função helper: Tenta OpenAPI — retorna estrutura pronta ou { found: false }
+async function tryOpenApiPhaseAccumulation(
+  docUrl: string,
+  erpName: string
+): Promise<{ found: boolean; result?: DiscoveryResult }> {
   try {
     const resHTML = await axios.get(docUrl, { timeout: 15000 });
     const $ = cheerio.load(resHTML.data);
 
-    // Busca link para spec JSON na página
     let jsonUrl = "";
     $("a, link").each((_, el) => {
       const href = $(el).attr("href") || "";
-      if (href && (href.endsWith(".json") || href.includes("swagger") || href.includes("openapi"))) {
-        jsonUrl = href.startsWith("http") ? href : new URL(href, docUrl).toString();
+      if (
+        href &&
+        (href.endsWith(".json") ||
+          href.includes("swagger") ||
+          href.includes("openapi"))
+      ) {
+        jsonUrl = href.startsWith("http")
+          ? href
+          : new URL(href, docUrl).toString();
       }
     });
 
-    // Tenta também URLs canônicas de OpenAPI
     if (!jsonUrl) {
       const candidates = [
         new URL("/openapi.json", docUrl).toString(),
@@ -175,403 +838,115 @@ async function discoveryNode(state: PipelineState): Promise<Partial<PipelineStat
             jsonUrl = candidate;
             break;
           }
-        } catch { /* não existe, tenta próximo */ }
+        } catch {
+          // Continua
+        }
       }
     }
 
-    if (jsonUrl) {
-      console.log(`[Discovery] OpenAPI encontrado: ${jsonUrl}`);
-      const specRes = await axios.get(jsonUrl, { timeout: 15000 });
-      const spec = specRes.data;
-
-      if (spec?.paths) {
-        // Extrai endpoints como EndpointInfo[]
-        const endpoints: EndpointInfo[] = [];
-        for (const [p_path, p_methods] of Object.entries<any>(spec.paths)) {
-          for (const method of ["get", "post", "put", "patch"] as const) {
-            if (!p_methods[method]) continue;
-            const op = p_methods[method];
-            const queryParams = (op.parameters || [])
-              .filter((p: any) => p.in === "query")
-              .map((p: any) => p.name);
-            const bodyParams = op.requestBody
-              ? Object.keys(op.requestBody?.content?.["application/json"]?.schema?.properties || {})
-              : [];
-            endpoints.push({
-              method: method.toUpperCase() as "GET" | "POST",
-              path: p_path,
-              description: op.summary || op.description || p_path,
-              queryParams,
-              bodyParams,
-            });
-          }
-        }
-
-        // Extrai auth
-        const secSchemes = spec.components?.securitySchemes || {};
-        const firstScheme = Object.values<any>(secSchemes)[0];
-        let authType = "Bearer Token in Authorization header";
-        let authFields = ["access_token"];
-        if (firstScheme?.type === "apiKey") {
-          authType = `API Key in ${firstScheme.in} as "${firstScheme.name}"`;
-          authFields = [firstScheme.name];
-        } else if (firstScheme?.type === "oauth2") {
-          authType = "OAuth2 Bearer Token in Authorization header";
-          authFields = ["access_token"];
-        } else if (firstScheme?.type === "http" && firstScheme?.scheme === "basic") {
-          authType = "HTTP Basic Auth: username and password as Base64 in Authorization header";
-          authFields = ["username", "password"];
-        }
-
-        const baseUrl = spec.servers?.[0]?.url || docUrl;
-
-        const discoveryResult: DiscoveryResult = {
-          authType,
-          authFields,
-          baseUrl,
-          endpoints,
-          paginationStrategy: "page and size query params",
-          paginationParams: { pageParam: "page", sizeParam: "size", defaultPageSize: "50" } as any,
-          paginationTermination: "stop when response array length is 0 or less than page size",
-          dateParams: {},
-          responseEnvelopes: ["data", "items", "results"],
-          isRpcStyle: false,
-          description: spec.info?.description || spec.info?.title || erpName,
-          docSource: "live",
-          docUrl,
-          rawDocText: JSON.stringify(spec).slice(0, 4000),
-        };
-
-        await updatePipeline(pipelineId, { discoveryResult: discoveryResult as any, currentStep: "mapping" });
-        console.log(`[Discovery] OpenAPI ✅ — ${endpoints.length} endpoints, sem LLM`);
-        return { discoveryResult };
-      }
+    if (!jsonUrl) {
+      return { found: false };
     }
-  } catch (err) {
-    console.warn("[Discovery] OpenAPI não encontrado, usando LLM:", (err as any).message);
+
+    const specRes = await axios.get(jsonUrl, { timeout: 15000 });
+    const spec = specRes.data;
+
+    if (!spec?.paths) {
+      return { found: false };
+    }
+
+    const result = await buildOpenApiResult(spec, erpName, docUrl);
+    return { found: true, result };
+  } catch {
+    return { found: false };
   }
-
-  // ── Passo 0: Extração de Sementes da Raiz (Fase 1) ──────────────────────────
-  let seedUrls: string[] = [docUrl];
-  try {
-    const { fetchRootHtml, extractLinksWithText } = await import("./docFetcher.js");
-    const rootHtml = await fetchRootHtml(docUrl);
-    const links = extractLinksWithText(rootHtml, docUrl);
-    
-    if (links.length > 0) {
-      const sampleLinks = links.slice(0, 200);
-      const filteredUrls = await invokeLLMJson<string[]>(
-        config,
-        `You are an API documentation architect.`,
-        `The ERP system is "${erpName}".
-We need to find the API endpoints for: invoices, receivables, payables, customers, orders, and billing.
-Here is a JSON list of links found on the documentation root page:
-${JSON.stringify(sampleLinks)}
-
-Return a JSON array of up to 10 URLs (href values) from this list that are the MOST LIKELY entry points for those modules.
-Return ONLY a valid JSON array of strings, no explanation.`
-      );
-      if (Array.isArray(filteredUrls) && filteredUrls.length > 0) {
-        seedUrls = filteredUrls;
-        console.log(`[Discovery] Sementes escolhidas pelo LLM para ${erpName}:`, seedUrls);
-      }
-    }
-  } catch (err) {
-    console.warn("[Discovery] Falha na Fase 1 (extração de sementes), usando raiz como fallback:", (err as any).message);
-  }
-
-  // ── Passo 1: Crawl seletivo com intenção (Fase 2) ──────────────────────────
-  // Itera pelos seedUrls um a um, pergunta ao LLM se cada página cobre
-  // endpoints LIST/GET das 4 entidades, e para assim que encontrar todas.
-  const neededEntities = ["invoices", "receivables", "payables", "customers"];
-  const foundEntities = new Set<string>();
-  const usefulPages: string[] = [];
-  // Exemplos extraídos da doc por entidade — repassados ao Mapping como fonte da verdade
-  const entityExamples: Record<string, { envelope: string; responseExample: string }> = {};
-
-  try {
-    // ── Tentativa rápida de OpenAPI nas seedUrls antes do crawl ────────────────
-    for (const url of seedUrls) {
-      try {
-        const probe = await axios.get(url, { timeout: 8000, headers: { Accept: "application/json" } });
-        const spec = probe.data;
-        if (typeof spec === "object" && spec?.paths) {
-          console.log(`[Discovery] OpenAPI detectado em seedUrl: ${url}`);
-          const endpoints: EndpointInfo[] = [];
-          for (const [p_path, p_methods] of Object.entries<any>(spec.paths)) {
-            for (const method of ["get", "post"] as const) {
-              if (!p_methods[method]) continue;
-              const op = p_methods[method];
-              endpoints.push({
-                method: method.toUpperCase() as "GET" | "POST",
-                path: p_path,
-                description: op.summary || op.description || p_path,
-                queryParams: (op.parameters || []).filter((p: any) => p.in === "query").map((p: any) => p.name),
-                bodyParams: op.requestBody ? Object.keys(op.requestBody?.content?.["application/json"]?.schema?.properties || {}) : [],
-              });
-            }
-          }
-          const secSchemes = spec.components?.securitySchemes || {};
-          const firstScheme = Object.values<any>(secSchemes)[0];
-          let authType = "Bearer Token in Authorization header";
-          let authFields = ["access_token"];
-          if (firstScheme?.type === "apiKey") {
-            authType = `API Key in ${firstScheme.in} as "${firstScheme.name}"`;
-            authFields = [firstScheme.name];
-          } else if (firstScheme?.type === "oauth2") {
-            authType = "OAuth2 Bearer Token in Authorization header";
-          } else if (firstScheme?.type === "http" && firstScheme?.scheme === "basic") {
-            authType = "HTTP Basic Auth";
-            authFields = ["username", "password"];
-          }
-          const discoveryResult: DiscoveryResult = {
-            authType, authFields,
-            baseUrl: spec.servers?.[0]?.url || docUrl,
-            endpoints,
-            paginationStrategy: "page and size query params",
-            paginationParams: { pageParam: "page", sizeParam: "size", defaultPageSize: "50" } as any,
-            paginationTermination: "stop when response array length is 0 or less than page size",
-            dateParams: {},
-            responseEnvelopes: ["data", "items", "results"],
-            isRpcStyle: false,
-            description: spec.info?.description || spec.info?.title || erpName,
-            docSource: "live", docUrl,
-            rawDocText: JSON.stringify(spec).slice(0, 4000),
-          };
-          await updatePipeline(pipelineId, { discoveryResult: discoveryResult as any, currentStep: "mapping" });
-          console.log(`[Discovery] OpenAPI via seedUrl ✅ — ${endpoints.length} endpoints, sem crawl adicional`);
-          return { discoveryResult };
-        }
-      } catch { /* não é JSON/OpenAPI, continua */ }
-    }
-
-    for (const url of seedUrls) {
-      if (foundEntities.size === neededEntities.length) {
-        console.log(`[Discovery] Todas as ${neededEntities.length} entidades encontradas. Parando crawl.`);
-        break;
-      }
-
-      let pageContent = "";
-      try {
-        const pageResult = await fetchPage(url);
-        if (!pageResult) continue;
-        pageContent = extractUsefulContent(pageResult.html);
-        if (pageContent.length < 50) continue; // página sem conteúdo útil
-      } catch (fetchErr: any) {
-        console.warn(`[Discovery] Falha ao buscar ${url}: ${fetchErr?.message}`);
-        continue;
-      }
-
-      try {
-        const remaining = neededEntities.filter(e => !foundEntities.has(e));
-        const verdict = await invokeLLMJson<{
-          useful: boolean;
-          covers: string[];
-          envelope?: string;
-          responseExample?: string;
-        }>(
-          config,
-          `You are an API documentation analyst. Answer ONLY with valid JSON.`,
-          `Does this documentation page contain a LIST or GET endpoint (for reading data in bulk) for any of these entities: ${remaining.join(", ")}?
-
-If yes, fill all fields. If no, return { "useful": false, "covers": [] }.
-
-Return format:
-{
-  "useful": true,
-  "covers": ["entity"],
-  "envelope": "exact JSON key in the response that holds the records array (e.g. conta_receber_cadastro, clientes_cadastro, data, items)",
-  "responseExample": "copy the first object from the response array shown in the docs, as a JSON string — or empty string if not visible"
 }
 
-CRITICAL: The "covers" array MUST only contain values from this exact list:
-["invoices", "receivables", "payables", "customers"]
-Never use endpoint names, Portuguese terms, or any other values.
-Mapping rules:
-- notas de entrada, notas fiscais, sales orders → "invoices"
-- contas a receber, accounts receivable → "receivables"
-- contas a pagar, accounts payable → "payables"
-- clientes, customers, clients → "customers"
-
-For the "envelope": look carefully for the JSON key name of the array in response examples shown in the documentation.
-For the "responseExample": copy the first record object from any response example shown in the docs.
-
-Page URL: ${url}
-Page content (extracted):
-${pageContent.slice(0, 3000)}`
-        );
-
-        // Sanitização defensiva: filtra qualquer valor fora da lista canônica
-        const VALID_ENTITIES = new Set(["invoices", "receivables", "payables", "customers"]);
-        const validCovers = (verdict.covers ?? []).filter(e => VALID_ENTITIES.has(e));
-
-        if (verdict.useful && validCovers.length > 0) {
-          usefulPages.push(`### Source: ${url}\n\n${pageContent}`);
-          validCovers.forEach(e => {
-            foundEntities.add(e);
-            // Salva envelope e responseExample por entidade — fonte da verdade para o Mapping
-            if (!entityExamples[e]) {
-              entityExamples[e] = {
-                envelope: verdict.envelope ?? "",
-                responseExample: verdict.responseExample ?? "",
-              };
-            }
-          });
-          console.log(`[Discovery] ✅ ${url} — cobre: ${validCovers.join(", ")} | envelope: ${verdict.envelope ?? "(não extraído)"} (${foundEntities.size}/${neededEntities.length})`);
-        } else {
-          if (verdict.useful && (verdict.covers ?? []).length > 0 && validCovers.length === 0) {
-            console.warn(`[Discovery] ⚠️ LLM retornou covers inválidos: [${verdict.covers.join(", ")}] para ${url} — ignorando`);
-          }
-          console.log(`[Discovery] ❌ ${url} — não cobre entidades pendentes`);
-        }
-      } catch (llmErr: any) {
-        console.warn(`[Discovery] LLM verdict falhou para ${url}: ${llmErr?.message}`);
-        // Em caso de falha do LLM, inclui a página por precaução
-        usefulPages.push(`### Source: ${url}\n\n${pageContent}`);
-      }
-    }
-
-    // Log de entidades não cobertas (pipeline continua normalmente)
-    const faltando = neededEntities.filter(e => !foundEntities.has(e));
-    if (faltando.length > 0) {
-      console.warn(`[Discovery] Finalizou crawl sem cobrir: ${faltando.join(", ")}`);
-    }
-
-    if (usefulPages.length > 0) {
-      rawDocText = usefulPages.join("\n\n---\n\n");
-      docSource = "live";
-      console.log(`[Discovery] Crawl seletivo: ${usefulPages.length} páginas úteis, ${rawDocText.length} chars, entidades: [${Array.from(foundEntities).join(", ")}]`);
-    } else {
-      // Fallback: se nenhuma página foi marcada como útil, tenta o crawl tradicional
-      console.log(`[Discovery] Nenhuma página selecionada pelo LLM. Usando crawl tradicional como fallback...`);
-      const fetched = await fetchDocumentation(docUrl, seedUrls);
-      if (fetched.combinedText?.length > 200) {
-        rawDocText = fetched.combinedText;
-        docSource = fetched.source as DiscoveryResult["docSource"];
-        console.log(`[Discovery] Fallback: ${fetched.pages.length} páginas — ${rawDocText.length} chars`);
-      }
-    }
-  } catch (err) {
-    console.warn("[Discovery] Crawl seletivo falhou, tentando fetchDocumentation:", err);
-    try {
-      const fetched = await fetchDocumentation(docUrl, seedUrls);
-      if (fetched.combinedText?.length > 200) {
-        rawDocText = fetched.combinedText;
-        docSource = fetched.source as DiscoveryResult["docSource"];
-      }
-    } catch (innerErr) {
-      console.warn("[Discovery] fetchDocumentation também falhou:", innerErr);
+// ─── Função helper: Constrói DiscoveryResult a partir de spec OpenAPI
+async function buildOpenApiResult(
+  spec: any,
+  erpName: string,
+  docUrl: string
+): Promise<DiscoveryResult> {
+  const endpoints: EndpointInfo[] = [];
+  for (const [p_path, p_methods] of Object.entries<any>(spec.paths || {})) {
+    for (const method of ["get", "post", "put", "patch"] as const) {
+      if (!p_methods[method]) continue;
+      const op = p_methods[method];
+      endpoints.push({
+        method: method.toUpperCase() as "GET" | "POST",
+        path: p_path,
+        description: op.summary || op.description || p_path,
+        queryParams: (op.parameters || [])
+          .filter((p: any) => p.in === "query")
+          .map((p: any) => p.name),
+        bodyParams: op.requestBody
+          ? Object.keys(
+              op.requestBody?.content?.["application/json"]?.schema
+                ?.properties || {}
+            )
+          : [],
+      });
     }
   }
 
-  // ── Passo 3: LLM — só chega aqui se OpenAPI não existia ─────────────────────
-  console.log(`[Discovery] Invocando LLM para ${erpName}...`);
-
-  const systemPrompt = `You are a senior API integration engineer specialized in ERP systems.
-
-Your job is to read raw API documentation and extract a precise, structured description of the API.
-
-Rules:
-- If the documentation is an index/overview without technical details, use your pre-trained knowledge about this ERP to fill in the correct endpoints, HTTP methods, and auth strategy.
-- For auth, describe EXACTLY what credentials are needed and WHERE they go. Be specific.
-- For pagination, describe EXACTLY how to detect the END of data (e.g. "stop when array length < page_size").
-- If this is an RPC-style API, set method to POST and include the action field.
-- ONLY extract endpoints that READ or LIST data in bulk (e.g., "ListarClientes", "Search Invoices", "Get All Payables"). 
-- DO NOT extract endpoints that CREATE, UPDATE, or DELETE data.
-- DO NOT extract single-item lookup endpoints (e.g., "ConsultarCliente por ID", "Get Invoice by ID") unless it's the only option. We need to sync massive amounts of data, so pagination list endpoints are strictly required.
-- VERY IMPORTANT: Do not assume all endpoints are at the root path '/'. Read the 'Source: [URL]' headers or documentation text for each module to extract the EXACT path relative to the baseUrl.
-- Return ONLY valid JSON, no markdown, no explanation.`;
-
-  const userPrompt = `ERP system: "${erpName}"
-Documentation URL: ${docUrl}
-
-RAW DOCUMENTATION:
-${rawDocText || "(fetch failed — use your pre-trained knowledge about this ERP)"}
-
-Return this exact JSON:
-{
-  "authType": "full description: method name + exactly which fields + exactly where they go (e.g. 'POST body as JSON with fields...' or 'Authorization: Bearer {access_token} header'). Do not invent schemas, extract exactly what the documentation specifies.",
-  "authFields": ["exact credential field names needed, e.g. app_key, app_secret, access_token, client_id"],
-  "baseUrl": "https://...",
-  "endpoints": [
-    {
-      "method": "GET or POST",
-      "path": "/path/to/endpoint",
-      "description": "which entity this returns",
-      "queryParams": ["param1"],
-      "bodyParams": ["param1"],
-      "action": "RPC action name if applicable (e.g. ListarClientes)"
-    }
-  ],
-  "paginationStrategy": "exact description of how to paginate",
-  "paginationParams": {
-    "pageParam": "exact param name for page number",
-    "sizeParam": "exact param name for page size",
-    "defaultPageSize": 50
-  },
-  "paginationTermination": "EXACT condition to stop: e.g. 'stop when response array length is 0', 'stop when total_de_registros equals 0', 'stop when next_cursor is null'",
-  "dateParams": {
-    "startParam": "exact param name",
-    "endParam": "exact param name",
-    "dateFormat": "YYYY-MM-DD or DD/MM/YYYY or timestamp"
-  },
-  "responseEnvelopes": ["exact JSON keys that contain the records array, e.g. clientes_cadastro, data, items"],
-  "isRpcStyle": false,
-  "description": "1-2 sentence summary"
-}`;
-
-  try {
-    const result = await invokeLLMJson<Omit<DiscoveryResult, "docSource" | "docUrl" | "rawDocText">>(
-      config, systemPrompt, userPrompt
-    );
-
-    const discoveryResult: DiscoveryResult = {
-      authType: result.authType || "unknown",
-      authFields: result.authFields || [],
-      baseUrl: result.baseUrl || docUrl,
-      endpoints: Array.isArray(result.endpoints) ? result.endpoints : [],
-      paginationStrategy: result.paginationStrategy || "",
-      paginationParams: result.paginationParams || {},
-      paginationTermination: result.paginationTermination || "response array length is 0",
-      dateParams: result.dateParams || {},
-      responseEnvelopes: result.responseEnvelopes || [],
-      isRpcStyle: result.isRpcStyle || false,
-      description: result.description || "",
-      docSource,
-      docUrl,
-      rawDocText,
-      entityExamples,  // exemplos extraídos do crawl por entidade
-    };
-
-    await updatePipeline(pipelineId, { discoveryResult: discoveryResult as any });
-    console.log(`[Discovery] OK — auth: ${discoveryResult.authType} | endpoints: ${discoveryResult.endpoints.length}`);
-    console.log(`[Discovery] entityExamples a enviar:`, JSON.stringify(entityExamples));
-    return { discoveryResult };
-  } catch (err: any) {
-    console.error("[Discovery] LLM falhou:", err.message);
-    return {
-      discoveryResult: {
-        authType: "unknown", authFields: [], baseUrl: docUrl, endpoints: [],
-        paginationStrategy: "", paginationParams: {}, paginationTermination: "stop when array is empty",
-        dateParams: {}, responseEnvelopes: [], isRpcStyle: false,
-        description: "discovery failed", docSource: "fallback", docUrl, rawDocText,
-      },
-    };
+  const secSchemes = spec.components?.securitySchemes || {};
+  const firstScheme = Object.values<any>(secSchemes)[0];
+  let authType = "Bearer Token in Authorization header";
+  let authFields = ["access_token"];
+  if (firstScheme?.type === "apiKey") {
+    authType = `API Key in ${firstScheme.in} as "${firstScheme.name}"`;
+    authFields = [firstScheme.name];
+  } else if (firstScheme?.type === "oauth2") {
+    authType = "OAuth2 Bearer Token in Authorization header";
+  } else if (firstScheme?.type === "http" && firstScheme?.scheme === "basic") {
+    authType = "HTTP Basic Auth";
+    authFields = ["username", "password"];
   }
+
+  return {
+    authType,
+    authFields,
+    baseUrl: spec.servers?.[0]?.url || docUrl,
+    endpoints,
+    paginationStrategy: "page and size query params",
+    paginationParams: {
+      pageParam: "page",
+      sizeParam: "size",
+      defaultPageSize: "50",
+    } as any,
+    paginationTermination:
+      "stop when response array length is 0 or less than page size",
+    dateParams: {},
+    responseEnvelopes: ["data", "items", "results"],
+    isRpcStyle: false,
+    description: spec.info?.description || spec.info?.title || erpName,
+    docSource: "live",
+    docUrl,
+    rawDocText: JSON.stringify(spec).slice(0, 4000),
+  };
 }
 
 // ─── Node 2: Mapping ───────────────────────────────────────────────────────────
 // Única responsabilidade: para cada entidade canônica, qual endpoint + campos
 
-async function mappingNode(state: PipelineState): Promise<Partial<PipelineState>> {
+async function mappingNode(
+  state: PipelineState
+): Promise<Partial<PipelineState>> {
   const { erpName, discoveryResult, modelConfigs, pipelineId } = state;
   const config = modelConfigs.mapping ?? DEFAULT_MODEL_CONFIGS.mapping!;
 
   await updatePipeline(pipelineId, { currentStep: "mapping" });
 
   // DEBUG: confirma se entityExamples chegou do Discovery
-  console.log("[Mapping] entityExamples recebidos:", JSON.stringify(discoveryResult?.entityExamples ?? null));
-  console.log("[Mapping] discoveryResult keys:", Object.keys(discoveryResult ?? {}).join(", "));
+  console.log(
+    "[Mapping] entityExamples recebidos:",
+    JSON.stringify(discoveryResult?.entityExamples ?? null)
+  );
+  console.log(
+    "[Mapping] discoveryResult keys:",
+    Object.keys(discoveryResult ?? {}).join(", ")
+  );
 
   const systemPrompt = `You are a data mapping specialist for ERP integrations.
 
@@ -602,7 +977,8 @@ Do NOT leave dePara arrays empty. Always populate them with real field names fro
     const ex = discoveryResult?.entityExamples;
     if (!ex || Object.keys(ex).length === 0) return "";
     const lines = Object.entries(ex).map(([entity, data]) => {
-      const hasExample = data.responseExample && data.responseExample.trim().length > 2;
+      const hasExample =
+        data.responseExample && data.responseExample.trim().length > 2;
       const exLine = hasExample
         ? `  responseExample: ${data.responseExample}`
         : `  responseExample: (not available) — FALLBACK: find "${data.envelope}" in the DOCUMENTATION EXCERPT and extract ALL field names from that array. Populate dePara with those exact field names. Do NOT return empty arrays.`;
@@ -620,9 +996,12 @@ Is RPC style: ${discoveryResult?.isRpcStyle}
 Pagination termination: ${discoveryResult?.paginationTermination}
 ${examplesText}
 Available endpoints:
-${discoveryResult?.endpoints?.map(e =>
-    `  ${e.method} ${e.path}${e.action ? ` action="${e.action}"` : ""} — ${e.description}`
-  ).join("\n")}
+${discoveryResult?.endpoints
+  ?.map(
+    e =>
+      `  ${e.method} ${e.path}${e.action ? ` action="${e.action}"` : ""} — ${e.description}`
+  )
+  .join("\n")}
 
 DOCUMENTATION EXCERPT:
 ${discoveryResult?.rawDocText?.slice(0, 5000)}
@@ -686,12 +1065,16 @@ Return this JSON:
 }`;
 
   try {
-    const result = await invokeLLMJson<{ entityMappings: MappingResult["entityMappings"] }>(
-      config, systemPrompt, userPrompt
-    );
-    const mappingResult: MappingResult = { entityMappings: result.entityMappings };
+    const result = await invokeLLMJson<{
+      entityMappings: MappingResult["entityMappings"];
+    }>(config, systemPrompt, userPrompt);
+    const mappingResult: MappingResult = {
+      entityMappings: result.entityMappings,
+    };
     await updatePipeline(pipelineId, { mappingResult: mappingResult as any });
-    console.log(`[Mapping] OK — entidades: ${Object.keys(mappingResult.entityMappings).join(", ")}`);
+    console.log(
+      `[Mapping] OK — entidades: ${Object.keys(mappingResult.entityMappings).join(", ")}`
+    );
     return { mappingResult };
   } catch (err: any) {
     console.error("[Mapping] LLM falhou:", err.message);
@@ -700,17 +1083,29 @@ Return this JSON:
 }
 
 // ─── Node 3: Generator ─────────────────────────────────────────────────────────
-async function generatorNode(state: PipelineState): Promise<Partial<PipelineState>> {
-  const { erpName, credentials, discoveryResult, mappingResult, modelConfigs, pipelineId } = state;
+async function generatorNode(
+  state: PipelineState
+): Promise<Partial<PipelineState>> {
+  const {
+    erpName,
+    credentials,
+    discoveryResult,
+    mappingResult,
+    modelConfigs,
+    pipelineId,
+  } = state;
   const config = modelConfigs.generator ?? DEFAULT_MODEL_CONFIGS.generator!;
   const mapperConfig = DEFAULT_MODEL_CONFIGS.generator_mapper!;
 
-  await updatePipeline(pipelineId, { currentStep: "generator", status: "running" });
+  await updatePipeline(pipelineId, {
+    currentStep: "generator",
+    status: "running",
+  });
 
   const connectorDir = path.resolve("connectors", erpName);
   fs.mkdirSync(connectorDir, { recursive: true });
 
-  const errorPrefix = state.lastCodeError 
+  const errorPrefix = state.lastCodeError
     ? `\nCRITICAL: Your previous code failed to execute with this error:\n${state.lastCodeError}\nRewrite the code to fix this issue!\n\n`
     : "";
 
@@ -734,7 +1129,13 @@ CRITICAL: Study the request examples from the documentation carefully.
 Your getAuthBody must return an object that matches EXACTLY the structure of those request examples — same field names, same nesting, same array structures. Do not invent or simplify the structure.
 If the request example shows a 'param' array containing an object, getAuthBody MUST return that 'param' array.
 If the request example shows flat fields, return flat fields.
-The request example in the documentation is the absolute source of truth for the body structure.`;
+The request example in the documentation is the absolute source of truth for the body structure.
+
+CRITICAL SECURITY RULE — OAUTH2 BEARER TOKEN FLOWS:
+For OAuth2 Bearer Token APIs, getAuthBody MUST return {}.
+Credentials go ONLY in getAuthHeaders as Authorization: Bearer.
+Never put grant_type, client_id or client_secret in getAuthBody — those are used only during the OAuth flow, not during API calls.
+The requestExample from the documentation is the source of truth for where credentials go.`;
 
   const authUserPrompt = `${errorPrefix}Generate auth.js for ERP "${erpName}".
 
@@ -846,12 +1247,13 @@ module.exports = { normalize }`;
       invokeLLMText(config, extractorSystemPrompt, extractorUserPrompt),
     ]);
 
-    const clean = (code: string) => code
-      .replace(/^\s*```javascript\n?/gim, "")
-      .replace(/^\s*```js\n?/gim, "")
-      .replace(/^\s*```\n?/gim, "")
-      .replace(/```\s*$/gim, "")
-      .trim();
+    const clean = (code: string) =>
+      code
+        .replace(/^\s*```javascript\n?/gim, "")
+        .replace(/^\s*```js\n?/gim, "")
+        .replace(/^\s*```\n?/gim, "")
+        .replace(/```\s*$/gim, "")
+        .trim();
 
     const authFile = path.join(connectorDir, "auth.js");
     const extractorFile = path.join(connectorDir, "extractor.js");
@@ -885,7 +1287,10 @@ module.exports = { normalize }`;
           `["'](${correctEnvelope.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[A-Za-z0-9_]*)["']`,
           "g"
         );
-        extractorCode = extractorCode.replace(envPattern, `"${correctEnvelope}"`);
+        extractorCode = extractorCode.replace(
+          envPattern,
+          `"${correctEnvelope}"`
+        );
       }
     }
 
@@ -900,28 +1305,41 @@ module.exports = { normalize }`;
     fs.writeFileSync(extractorFile, extractorCode, "utf-8");
 
     // ── FASE 1.5: Executar Teste Real para Capturar Ground Truth ──────────────
-    console.log(`[Generator] Arquivos Fase 1 salvos. Iniciando extração teste para o Mapper...`);
+    console.log(
+      `[Generator] Arquivos Fase 1 salvos. Iniciando extração teste para o Mapper...`
+    );
     const rawExamples: Record<string, unknown> = {};
     try {
       delete require.cache[require.resolve(extractorFile)];
       delete require.cache[require.resolve(authFile)];
       const { extractRawData } = require(extractorFile);
-      
+
       const entities = ["invoices", "receivables", "payables", "customers"];
       for (const entity of entities) {
         try {
           // Passamos maxPages = 1 para capturar apenas a primeira página rápido
-          const data = await extractRawData(credentials, entity, discoveryResult?.baseUrl || "", 1);
+          const data = await extractRawData(
+            credentials,
+            entity,
+            discoveryResult?.baseUrl || "",
+            1
+          );
           if (Array.isArray(data) && data.length > 0) {
             rawExamples[entity] = data[0]; // Guarda o primeiro registro como Ground Truth
             console.log(`[Generator] Amostra real capturada para ${entity}`);
           }
         } catch (e: any) {
-          console.warn(`[Generator] Teste de extração falhou para ${entity}:`, e.message);
+          console.warn(
+            `[Generator] Teste de extração falhou para ${entity}:`,
+            e.message
+          );
         }
       }
     } catch (e: any) {
-      console.warn(`[Generator] Falha ao carregar extractor para teste:`, e.message);
+      console.warn(
+        `[Generator] Falha ao carregar extractor para teste:`,
+        e.message
+      );
     }
 
     // ── FASE 2: Gerar Mapper usando Ground Truth ──────────────────────────────
@@ -951,12 +1369,24 @@ ${JSON.stringify(mappingResult?.entityMappings, null, 2)}
 Export: normalize(raw, entity)
 module.exports = { normalize }`;
 
-    const mapperRawText = await invokeLLMText(mapperConfig, mapperSystemPrompt, mapperUserPrompt);
+    const mapperRawText = await invokeLLMText(
+      mapperConfig,
+      mapperSystemPrompt,
+      mapperUserPrompt
+    );
     fs.writeFileSync(mapperFile, clean(mapperRawText), "utf-8");
 
     fs.writeFileSync(
       path.join(connectorDir, "context.json"),
-      JSON.stringify({ erpName, discovery: state.discoveryResult, mapping: state.mappingResult }, null, 2),
+      JSON.stringify(
+        {
+          erpName,
+          discovery: state.discoveryResult,
+          mapping: state.mappingResult,
+        },
+        null,
+        2
+      ),
       "utf-8"
     );
 
@@ -966,20 +1396,25 @@ module.exports = { normalize }`;
     try {
       delete require.cache[require.resolve(authFile)];
       const authModule = require(authFile);
-      const testBody   = authModule.getAuthBody?.({}, "test") ?? {};
+      const testBody = authModule.getAuthBody?.({}, "test") ?? {};
       const testHeaders = authModule.getAuthHeaders?.({}) ?? {};
-      const testParams  = authModule.getAuthQueryParams?.({}) ?? {};
-      const bodyKeys   = Object.keys(testBody).filter(k => k !== "undefined");
+      const testParams = authModule.getAuthQueryParams?.({}) ?? {};
+      const bodyKeys = Object.keys(testBody).filter(k => k !== "undefined");
       const headerKeys = Object.keys(testHeaders);
-      const paramKeys  = Object.keys(testParams);
-      const allEmpty   = bodyKeys.length === 0 && headerKeys.length === 0 && paramKeys.length === 0;
+      const paramKeys = Object.keys(testParams);
+      const allEmpty =
+        bodyKeys.length === 0 &&
+        headerKeys.length === 0 &&
+        paramKeys.length === 0;
 
       if (allEmpty) {
         const validationError =
           `auth.js inválido: getAuthBody/getAuthHeaders/getAuthQueryParams todos retornam {}.\n` +
           `ERP: ${erpName} | authType: ${discoveryResult?.authType}\n` +
           `O LLM deve colocar as credenciais em pelo menos um desses métodos conforme a documentação.`;
-        console.warn(`[Generator] ⚠️ Validação auth.js FALHOU — todos os métodos retornam {}.`);
+        console.warn(
+          `[Generator] ⚠️ Validação auth.js FALHOU — todos os métodos retornam {}.`
+        );
         if (state.retryCount < 3) {
           return {
             retryCount: state.retryCount + 1,
@@ -987,9 +1422,13 @@ module.exports = { normalize }`;
           };
         }
         // Após 3 tentativas, continua mesmo assim para não travar o pipeline
-        console.warn(`[Generator] Continuando após ${state.retryCount} tentativas sem auth válido.`);
+        console.warn(
+          `[Generator] Continuando após ${state.retryCount} tentativas sem auth válido.`
+        );
       } else {
-        console.log(`[Generator] ✅ Validação auth.js OK — body:[${bodyKeys.join(",")}] headers:[${headerKeys.join(",")}] params:[${paramKeys.join(",")}]`);
+        console.log(
+          `[Generator] ✅ Validação auth.js OK — body:[${bodyKeys.join(",")}] headers:[${headerKeys.join(",")}] params:[${paramKeys.join(",")}]`
+        );
       }
     } catch (validErr: any) {
       console.warn(`[Generator] Erro ao validar auth.js: ${validErr.message}`);
@@ -1003,8 +1442,15 @@ module.exports = { normalize }`;
 
     console.log(`[Generator] OK — arquivos em ${connectorDir}/`);
 
-    const generatorResult: GeneratorResult = { connectorDir, authFile, extractorFile, mapperFile };
-    await updatePipeline(pipelineId, { generatorResult: generatorResult as any });
+    const generatorResult: GeneratorResult = {
+      connectorDir,
+      authFile,
+      extractorFile,
+      mapperFile,
+    };
+    await updatePipeline(pipelineId, {
+      generatorResult: generatorResult as any,
+    });
     return { generatorResult };
   } catch (err: any) {
     console.error("[Generator] Falhou:", err.message);
@@ -1016,12 +1462,25 @@ module.exports = { normalize }`;
 // Única responsabilidade: require() dos arquivos gerados, executar, persistir
 // Zero lógica de ERP aqui. Se os arquivos gerados funcionam, isso funciona.
 
-async function extractorNode(state: PipelineState): Promise<Partial<PipelineState>> {
-  const { tenantId, erpName, credentials, generatorResult, mappingResult, discoveryResult, pipelineId } = state;
+async function extractorNode(
+  state: PipelineState
+): Promise<Partial<PipelineState>> {
+  const {
+    tenantId,
+    erpName,
+    credentials,
+    generatorResult,
+    mappingResult,
+    discoveryResult,
+    pipelineId,
+  } = state;
 
   if (!generatorResult) {
     const errorMsg = state.error || "Generator não rodou";
-    await updatePipeline(pipelineId, { status: "failed", errorMessage: errorMsg });
+    await updatePipeline(pipelineId, {
+      status: "failed",
+      errorMessage: errorMsg,
+    });
     return { error: errorMsg };
   }
 
@@ -1031,8 +1490,16 @@ async function extractorNode(state: PipelineState): Promise<Partial<PipelineStat
 
   // Carrega os módulos gerados do disco
   // Invalida o cache do require para sempre pegar a versão mais recente
-  let extractRawData: (creds: Record<string, string>, entity: EntityType, baseUrl: string, discoveryResult: any) => Promise<Record<string, unknown>[]>;
-  let normalize: (raw: Record<string, unknown>, entity: EntityType) => Record<string, unknown>;
+  let extractRawData: (
+    creds: Record<string, string>,
+    entity: EntityType,
+    baseUrl: string,
+    discoveryResult: any
+  ) => Promise<Record<string, unknown>[]>;
+  let normalize: (
+    raw: Record<string, unknown>,
+    entity: EntityType
+  ) => Record<string, unknown>;
 
   try {
     delete require.cache[require.resolve(generatorResult.extractorFile)];
@@ -1045,60 +1512,85 @@ async function extractorNode(state: PipelineState): Promise<Partial<PipelineStat
     extractRawData = extractorModule.extractRawData;
     normalize = mapperModule.normalize;
 
-    if (typeof extractRawData !== "function") throw new Error("extractRawData não exportado");
-    if (typeof normalize !== "function") throw new Error("normalize não exportado");
-    } catch (err: any) {
-      console.error("[Extractor] Falha ao carregar módulos gerados:", err.message);
-      
-      // Self-healing loop: volta pro generator se < 3 retentativas
-      if (state.retryCount < 3) {
-        console.log(`[Extractor] Iniciando Self-Healing. Tentativa ${state.retryCount + 1}/3...`);
-        return { 
-          retryCount: state.retryCount + 1,
-          lastCodeError: err.stack || err.message
-        };
-      }
+    if (typeof extractRawData !== "function")
+      throw new Error("extractRawData não exportado");
+    if (typeof normalize !== "function")
+      throw new Error("normalize não exportado");
+  } catch (err: any) {
+    console.error(
+      "[Extractor] Falha ao carregar módulos gerados:",
+      err.message
+    );
 
-      await updatePipeline(pipelineId, { status: "failed", errorMessage: err.message });
-      return { error: err.message };
+    // Self-healing loop: volta pro generator se < 3 retentativas
+    if (state.retryCount < 3) {
+      console.log(
+        `[Extractor] Iniciando Self-Healing. Tentativa ${state.retryCount + 1}/3...`
+      );
+      return {
+        retryCount: state.retryCount + 1,
+        lastCodeError: err.stack || err.message,
+      };
     }
 
-    const entities: EntityType[] = ["invoices", "receivables", "payables", "customers"];
-    const byEntity: Record<EntityType, number> = { invoices: 0, receivables: 0, payables: 0, customers: 0 };
-    const sample: ExtractorResult["sample"] = [];
-    let totalRecords = 0;
+    await updatePipeline(pipelineId, {
+      status: "failed",
+      errorMessage: err.message,
+    });
+    return { error: err.message };
+  }
 
-    for (const entityType of entities) {
-      const logId = await createExtractionLog({
-        tenantId, pipelineId,
-        erpType: erpName as any,
-        entityType,
-        status: "running",
-        recordsProcessed: 0,
-        recordsFailed: 0,
-        metadata: { entityType, pipelineId },
-      });
+  const entities: EntityType[] = [
+    "invoices",
+    "receivables",
+    "payables",
+    "customers",
+  ];
+  const byEntity: Record<EntityType, number> = {
+    invoices: 0,
+    receivables: 0,
+    payables: 0,
+    customers: 0,
+  };
+  const sample: ExtractorResult["sample"] = [];
+  let totalRecords = 0;
 
-      let entityRecords = 0;
-      let entityFailed = 0;
+  for (const entityType of entities) {
+    const logId = await createExtractionLog({
+      tenantId,
+      pipelineId,
+      erpType: erpName as any,
+      entityType,
+      status: "running",
+      recordsProcessed: 0,
+      recordsFailed: 0,
+      metadata: { entityType, pipelineId },
+    });
 
-      let rawItems: Record<string, unknown>[] = [];
-      try {
-        console.log(`[Extractor] Extraindo ${entityType}...`);
-        rawItems = await extractRawData(credentials, entityType, baseUrl, 100);
-        console.log(`[Extractor] ${entityType}: ${rawItems.length} registros brutos`);
-      } catch (extractErr: any) {
-        const msg = extractErr.message || '';
-        if (msg.includes('500') || msg.includes('404')) {
-          console.log(`[Extractor] ${entityType}: Retornou 500/404. Assumindo lista vazia.`);
-          rawItems = [];
-        } else {
-          throw extractErr;
-        }
+    let entityRecords = 0;
+    let entityFailed = 0;
+
+    let rawItems: Record<string, unknown>[] = [];
+    try {
+      console.log(`[Extractor] Extraindo ${entityType}...`);
+      rawItems = await extractRawData(credentials, entityType, baseUrl, 100);
+      console.log(
+        `[Extractor] ${entityType}: ${rawItems.length} registros brutos`
+      );
+    } catch (extractErr: any) {
+      const msg = extractErr.message || "";
+      if (msg.includes("500") || msg.includes("404")) {
+        console.log(
+          `[Extractor] ${entityType}: Retornou 500/404. Assumindo lista vazia.`
+        );
+        rawItems = [];
+      } else {
+        throw extractErr;
       }
+    }
 
-      try {
-        for (const raw of rawItems) {
+    try {
+      for (const raw of rawItems) {
         try {
           // Normaliza via mapper gerado
           let normalized: Record<string, unknown>;
@@ -1120,49 +1612,76 @@ async function extractorNode(state: PipelineState): Promise<Partial<PipelineStat
           const rawKey = `tenants/${tenantId}/${erpName}/${entityType}/${externalId}.json`;
           let storageKey = rawKey;
           const forgeUrl = process.env.BUILT_IN_FORGE_API_URL ?? "";
-          const forgeConfigured = forgeUrl && !forgeUrl.includes("localhost") && !forgeUrl.includes("127.0.0.1");
+          const forgeConfigured =
+            forgeUrl &&
+            !forgeUrl.includes("localhost") &&
+            !forgeUrl.includes("127.0.0.1");
           if (forgeConfigured) {
             try {
-              const { key } = await storagePut(rawKey, JSON.stringify(raw), "application/json");
+              const { key } = await storagePut(
+                rawKey,
+                JSON.stringify(raw),
+                "application/json"
+              );
               storageKey = key;
-            } catch { /* best effort */ }
+            } catch {
+              /* best effort */
+            }
           }
 
           // Persiste no banco usando as funções canônicas
-          await persistRecord(normalized, entityType, tenantId, erpName, storageKey);
+          await persistRecord(
+            normalized,
+            entityType,
+            tenantId,
+            erpName,
+            storageKey
+          );
 
-          if (sample.length < 5) sample.push({ entity: entityType, externalId, raw });
+          if (sample.length < 5)
+            sample.push({ entity: entityType, externalId, raw });
           entityRecords++;
           totalRecords++;
         } catch (itemErr: any) {
           entityFailed++;
-          console.error(`[Extractor] Item ${entityType} falhou:`, itemErr.message);
+          console.error(
+            `[Extractor] Item ${entityType} falhou:`,
+            itemErr.message
+          );
         }
       }
 
       await updateExtractionLog(logId, {
-        status: entityFailed > 0 && entityRecords === 0 ? "failed"
-          : entityFailed > 0 ? "partial"
-            : "success",
+        status:
+          entityFailed > 0 && entityRecords === 0
+            ? "failed"
+            : entityFailed > 0
+              ? "partial"
+              : "success",
         recordsProcessed: entityRecords,
         recordsFailed: entityFailed,
         finishedAt: new Date(),
       });
     } catch (entityErr: any) {
-      console.error(`[Extractor] Entidade ${entityType} falhou:`, entityErr.message);
+      console.error(
+        `[Extractor] Entidade ${entityType} falhou:`,
+        entityErr.message
+      );
       await updateExtractionLog(logId, {
         status: "failed",
         errorMessage: entityErr.message,
         recordsProcessed: entityRecords,
         finishedAt: new Date(),
       });
-      
+
       // Self-healing loop on runtime execution error
       if (state.retryCount < 3) {
-        console.log(`[Extractor] Falha em execução de ${entityType}. Iniciando Self-Healing. Tentativa ${state.retryCount + 1}/3...`);
-        return { 
+        console.log(
+          `[Extractor] Falha em execução de ${entityType}. Iniciando Self-Healing. Tentativa ${state.retryCount + 1}/3...`
+        );
+        return {
           retryCount: state.retryCount + 1,
-          lastCodeError: `Error extracting ${entityType}: ${entityErr.stack || entityErr.message}`
+          lastCodeError: `Error extracting ${entityType}: ${entityErr.stack || entityErr.message}`,
         };
       }
     }
@@ -1170,10 +1689,16 @@ async function extractorNode(state: PipelineState): Promise<Partial<PipelineStat
     byEntity[entityType] = entityRecords;
   }
 
-  const extractorResult: ExtractorResult = { recordsCount: totalRecords, byEntity, sample };
+  const extractorResult: ExtractorResult = {
+    recordsCount: totalRecords,
+    byEntity,
+    sample,
+  };
   console.log(`\n[Extractor] 🎯 EXTRAÇÃO FINALIZADA COM SUCESSO!`);
-  console.log(`[Extractor] Total de registros salvos no banco: ${totalRecords}`);
-  
+  console.log(
+    `[Extractor] Total de registros salvos no banco: ${totalRecords}`
+  );
+
   await updatePipeline(pipelineId, {
     extractorResult: extractorResult as any,
     currentStep: "done",
@@ -1207,7 +1732,8 @@ function fallbackNormalize(
     const d = new Date(v);
     if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
     const p = v.split("/");
-    if (p.length === 3) return `${p[2]}-${p[1]!.padStart(2, "0")}-${p[0]!.padStart(2, "0")}`;
+    if (p.length === 3)
+      return `${p[2]}-${p[1]!.padStart(2, "0")}-${p[0]!.padStart(2, "0")}`;
     return v.substring(0, 10);
   };
 
@@ -1221,7 +1747,9 @@ function fallbackNormalize(
     issueDate: date(pick(dePara.issue_date)),
     dueDate: date(pick(dePara.due_date)),
     grossAmount: amount(pick(dePara.gross_amount)),
-    paidAmount: pick(dePara.paid_amount) ? amount(pick(dePara.paid_amount)) : undefined,
+    paidAmount: pick(dePara.paid_amount)
+      ? amount(pick(dePara.paid_amount))
+      : undefined,
     document: pick(dePara.document),
     documentType: pick(dePara.document_type),
     documentNumber: pick(dePara.document_number),
@@ -1242,7 +1770,7 @@ async function persistRecord(
   rawStorageKey: string
 ): Promise<void> {
   const externalId = String(n.externalId || "");
-  const str = (v: unknown) => v ? String(v) : undefined;
+  const str = (v: unknown) => (v ? String(v) : undefined);
   // Campos com limite fixo de 2 chars — garante que valores longos (nomes mapeados errado) não causem erro no MySQL strict mode
   const code2 = (v: unknown): string | undefined => {
     const s = v ? String(v).trim() : "";
@@ -1252,15 +1780,20 @@ async function persistRecord(
 
   if (entity === "invoices") {
     await upsertInvoice({
-      tenantId, source, externalId,
+      tenantId,
+      source,
+      externalId,
       customerName: str(n.customerName) ?? "N/A",
       issueDate: str(n.issueDate),
       grossAmount: str(n.grossAmount) ?? "0",
-      rawStorageKey, status: "open",
+      rawStorageKey,
+      status: "open",
     });
   } else if (entity === "receivables") {
     await upsertReceivable({
-      tenantId, source, externalId,
+      tenantId,
+      source,
+      externalId,
       customerName: str(n.customerName) ?? "N/A",
       issueDate: str(n.issueDate),
       dueDate: str(n.dueDate),
@@ -1268,11 +1801,14 @@ async function persistRecord(
       paidAmount: str(n.paidAmount),
       documentType: str(n.documentType) ?? "",
       documentNumber: str(n.documentNumber) ?? "",
-      status: "open", rawStorageKey,
+      status: "open",
+      rawStorageKey,
     });
   } else if (entity === "payables") {
     await upsertPayable({
-      tenantId, source, externalId,
+      tenantId,
+      source,
+      externalId,
       supplierName: str(n.supplierName) ?? "N/A",
       issueDate: str(n.issueDate),
       dueDate: str(n.dueDate),
@@ -1281,14 +1817,18 @@ async function persistRecord(
       documentType: str(n.documentType) ?? "",
       documentNumber: str(n.documentNumber) ?? "",
       category: str(n.category) ?? "",
-      status: "open", rawStorageKey,
+      status: "open",
+      rawStorageKey,
     });
   } else if (entity === "customers") {
     const doc = str(n.document) ?? "";
     const digits = doc.replace(/\D/g, "");
-    const docType = digits.length === 11 ? "cpf" : digits.length === 14 ? "cnpj" : undefined;
+    const docType =
+      digits.length === 11 ? "cpf" : digits.length === 14 ? "cnpj" : undefined;
     await upsertCustomer({
-      tenantId, source, externalId,
+      tenantId,
+      source,
+      externalId,
       name: str(n.name) ?? "N/A",
       tradeName: str(n.tradeName),
       document: doc || undefined,
@@ -1296,9 +1836,10 @@ async function persistRecord(
       email: str(n.email),
       phone: str(n.phone),
       city: str(n.city),
-      state: code2(n.state),       // VARCHAR(2) — descarta se não for código de 2 letras
-      country: code2(n.country),   // VARCHAR(2) — idem
-      status: "active", rawStorageKey,
+      state: code2(n.state), // VARCHAR(2) — descarta se não for código de 2 letras
+      country: code2(n.country), // VARCHAR(2) — idem
+      status: "active",
+      rawStorageKey,
     });
   }
 }
@@ -1315,10 +1856,14 @@ function buildPipelineGraph() {
     .addEdge("discovery", "mapping")
     .addEdge("mapping", "generator")
     .addEdge("generator", "extractor")
-    .addConditionalEdges("extractor", (state) => {
+    .addConditionalEdges("extractor", state => {
       // Se não há resultado gerado mas houve increment de retry (teve erro de código),
       // e ainda não estouramos o limite, volta pro generator
-      if (state.lastCodeError && state.retryCount > 0 && state.retryCount <= 3) {
+      if (
+        state.lastCodeError &&
+        state.retryCount > 0 &&
+        state.retryCount <= 3
+      ) {
         return "generator";
       }
       return END;
@@ -1344,13 +1889,22 @@ const pipelineGraph = buildPipelineGraph();
 export async function runFullPipeline(
   tenantId: number,
   erpName: string
-): Promise<{ pipelineId: number; success: boolean; connectorDir?: string; error?: string }> {
+): Promise<{
+  pipelineId: number;
+  success: boolean;
+  connectorDir?: string;
+  error?: string;
+}> {
   const erpConfig = await getErpConfig(tenantId, erpName as any);
-  if (!erpConfig) throw new Error(`ERP config não encontrado: tenant=${tenantId} erp=${erpName}`);
+  if (!erpConfig)
+    throw new Error(
+      `ERP config não encontrado: tenant=${tenantId} erp=${erpName}`
+    );
 
   const credentials = (erpConfig.credentials as Record<string, string>) || {};
   const docUrl = (erpConfig as any).docUrl as string;
-  if (!docUrl) throw new Error(`docUrl obrigatório no ERP config de ${erpName}`);
+  if (!docUrl)
+    throw new Error(`docUrl obrigatório no ERP config de ${erpName}`);
 
   const [d, m, g, e] = await Promise.all([
     getModelConfig(tenantId, "discovery"),
@@ -1367,14 +1921,25 @@ export async function runFullPipeline(
   };
 
   const pipelineId = await createPipeline({
-    tenantId, erpType: erpName as any, status: "running", currentStep: "discovery",
+    tenantId,
+    erpType: erpName as any,
+    status: "running",
+    currentStep: "discovery",
   });
 
   try {
     const result = await pipelineGraph.invoke({
-      pipelineId, tenantId, erpName, credentials, docUrl, modelConfigs,
-      discoveryResult: undefined, mappingResult: undefined,
-      generatorResult: undefined, extractorResult: undefined, error: undefined,
+      pipelineId,
+      tenantId,
+      erpName,
+      credentials,
+      docUrl,
+      modelConfigs,
+      discoveryResult: undefined,
+      mappingResult: undefined,
+      generatorResult: undefined,
+      extractorResult: undefined,
+      error: undefined,
     });
 
     return {
@@ -1385,7 +1950,9 @@ export async function runFullPipeline(
     };
   } catch (err: any) {
     await updatePipeline(pipelineId, {
-      status: "failed", errorMessage: err?.message, finishedAt: new Date(),
+      status: "failed",
+      errorMessage: err?.message,
+      finishedAt: new Date(),
     });
     return { pipelineId, success: false, error: err?.message };
   }
@@ -1398,16 +1965,32 @@ export async function runDiscoveryOnly(
   modelConfig?: ModelConfig
 ): Promise<DiscoveryResult> {
   const pipelineId = await createPipeline({
-    tenantId: 0, erpType: erpName as any, status: "running", currentStep: "discovery",
+    tenantId: 0,
+    erpType: erpName as any,
+    status: "running",
+    currentStep: "discovery",
   });
   const result = await discoveryNode({
-    pipelineId, tenantId: 0, erpName, credentials: {}, docUrl,
-    modelConfigs: { discovery: modelConfig ?? DEFAULT_MODEL_CONFIGS.discovery! },
-    discoveryResult: undefined, mappingResult: undefined,
-    generatorResult: undefined, extractorResult: undefined, error: undefined,
-    retryCount: 0, lastCodeError: undefined,
+    pipelineId,
+    tenantId: 0,
+    erpName,
+    credentials: {},
+    docUrl,
+    modelConfigs: {
+      discovery: modelConfig ?? DEFAULT_MODEL_CONFIGS.discovery!,
+    },
+    discoveryResult: undefined,
+    mappingResult: undefined,
+    generatorResult: undefined,
+    extractorResult: undefined,
+    error: undefined,
+    retryCount: 0,
+    lastCodeError: undefined,
   } as PipelineState);
-  await updatePipeline(pipelineId, { status: "completed", finishedAt: new Date() });
+  await updatePipeline(pipelineId, {
+    status: "completed",
+    finishedAt: new Date(),
+  });
   return result.discoveryResult!;
 }
 
@@ -1419,7 +2002,10 @@ export async function runGeneratorOnly(
   credentials: Record<string, string> = {}
 ): Promise<{ connectorDir: string; files: Record<string, string> }> {
   const pipelineId = await createPipeline({
-    tenantId: 0, erpType: erpName as any, status: "running", currentStep: "discovery",
+    tenantId: 0,
+    erpType: erpName as any,
+    status: "running",
+    currentStep: "discovery",
   });
 
   const modelConfigs = {
@@ -1430,17 +2016,29 @@ export async function runGeneratorOnly(
   };
 
   let st: PipelineState = {
-    pipelineId, tenantId: 0, erpName, credentials, docUrl, modelConfigs,
-    discoveryResult: undefined, mappingResult: undefined,
-    generatorResult: undefined, extractorResult: undefined, error: undefined,
-    retryCount: 0, lastCodeError: undefined,
+    pipelineId,
+    tenantId: 0,
+    erpName,
+    credentials,
+    docUrl,
+    modelConfigs,
+    discoveryResult: undefined,
+    mappingResult: undefined,
+    generatorResult: undefined,
+    extractorResult: undefined,
+    error: undefined,
+    retryCount: 0,
+    lastCodeError: undefined,
   };
 
   st = { ...st, ...(await discoveryNode(st)) };
   st = { ...st, ...(await mappingNode(st)) };
   st = { ...st, ...(await generatorNode(st)) };
 
-  await updatePipeline(pipelineId, { status: "completed", finishedAt: new Date() });
+  await updatePipeline(pipelineId, {
+    status: "completed",
+    finishedAt: new Date(),
+  });
 
   const dir = st.generatorResult!.connectorDir;
   return {

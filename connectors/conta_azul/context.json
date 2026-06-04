@@ -1,157 +1,205 @@
 {
   "erpName": "conta_azul",
   "discovery": {
-    "authType": "OAuth2 Bearer Token",
-    "baseUrl": "https://api.contaazul.com",
+    "authType": "OAuth 2.0 Bearer token. Obtain an access token by sending client_id and client_secret to the token endpoint (https://api-v2.contaazul.com/oauth2/token) using the client_credentials grant. Include the resulting token in the Authorization header as 'Bearer <access_token>'.",
+    "authFields": [
+      "client_id",
+      "client_secret"
+    ],
+    "baseUrl": "https://api-v2.contaazul.com",
     "endpoints": [
       {
         "method": "GET",
-        "path": "/v1/autenticacao/token",
-        "description": "Obter token de acesso",
-        "queryParams": [],
+        "path": "/v1/venda/vendedores",
+        "description": "Lista os vendedores cadastrados no Conta Azul",
+        "queryParams": [
+          "page",
+          "size"
+        ],
         "bodyParams": [],
-        "action": "ObterToken"
-      },
-      {
-        "method": "POST",
-        "path": "/v1/autenticacao/token",
-        "description": "Trocar código pelo token de acesso",
-        "queryParams": [],
-        "bodyParams": [
-          "codigo"
-        ],
-        "action": "TrocarCodigo"
-      },
-      {
-        "method": "POST",
-        "path": "/v1/autenticacao/token/refresh",
-        "description": "Renovar token de acesso",
-        "queryParams": [],
-        "bodyParams": [
-          "refresh_token"
-        ],
-        "action": "RenovarToken"
+        "action": null
       },
       {
         "method": "GET",
-        "path": "/v1/financeiro/cobranca/parcela/{id}",
-        "description": "Consultar parcela por ID",
+        "path": "/v1/venda/busca",
+        "description": "Retorna vendas filtradas por parâmetros como data, cliente, situação, etc.",
         "queryParams": [
-          "rateio",
-          "categoria",
-          "centro_custo"
+          "dataInicial",
+          "dataFinal",
+          "cliente",
+          "situacao",
+          "tiposVenda",
+          "idsProdutos",
+          "idsCategorias",
+          "page",
+          "size"
         ],
         "bodyParams": [],
-        "action": "ConsultarParcela"
+        "action": null
+      },
+      {
+        "method": "GET",
+        "path": "/v1/notas-fiscais",
+        "description": "Consulta notas fiscais de produto (NF-e) emitidas no ERP",
+        "queryParams": [
+          "dataInicial",
+          "dataFinal",
+          "numeroNota",
+          "idVenda",
+          "page",
+          "size"
+        ],
+        "bodyParams": [],
+        "action": null
+      },
+      {
+        "method": "GET",
+        "path": "/v1/notas-fiscais-servico",
+        "description": "Consulta notas fiscais de serviço (NFS-e) emitidas no ERP",
+        "queryParams": [
+          "dataInicial",
+          "dataFinal",
+          "numeroNota",
+          "idVenda",
+          "page",
+          "size"
+        ],
+        "bodyParams": [],
+        "action": null
       }
     ],
-    "paginationStrategy": "Não há paginação",
-    "paginationParams": {},
+    "paginationStrategy": "Use page and size parameters; stop when the returned data array length is less than size (or the array is empty).",
+    "paginationParams": {
+      "pageParam": "page",
+      "sizeParam": "size",
+      "defaultPageSize": 50
+    },
+    "paginationTermination": "response array length is 0",
     "dateParams": {},
     "responseEnvelopes": [
-      "token",
-      "parcela"
+      "vendas"
     ],
-    "description": "API para autenticação e consulta de parcelas",
-    "docSource": "live",
+    "isRpcStyle": false,
+    "description": "Conta Azul ERP exposes REST endpoints with OAuth2 Bearer authentication for bulk reads of sellers, sales search, and fiscal notes (product and service).",
+    "docSource": "direct_download",
     "docUrl": "https://developers.contaazul.com/aboutapis",
-    "rawDocText": "### 🌐 Introdução às APIs Conta Azul\nSource: https://developers.contaazul.com/aboutapis\n\n## 🌐 Introdução às APIs Conta AzulCopyCopy for LLMCopy page as Markdown for LLMsView as MarkdownOpen this page as MarkdownOpen in ChatGPTGet insights from ChatGPTOpen in ClaudeGet insights from ClaudeConnect to CursorInstall MCP server on CursorConnect to VS CodeInstall MCP server on VS Code\n\n- Copy for LLMCopy page as Markdown for LLMs\n- View as MarkdownOpen this page as Markdown\n- Open in ChatGPTGet insights from ChatGPT\n- Open in ClaudeGet insights from Claude\n- Connect to CursorInstall MCP server on Cursor\n- Connect to VS CodeInstall MCP server on VS Code\nAs APIs da Conta Azul permitem integrar sistemas externos ao ERP Conta Azul de forma segura, padronizada e escalável.Elas oferecem recursos para automatizar processos financeiros, vendas, cadastros de clientes e fornecedores, produtos e notas fiscais, facilitando a sincronização de dados.\n\n## 🚀 O que você pode fazer com nossas APIs\n\nCom as APIs Conta Azul, é possível:\n- Integrar sistemas parceiros (BI, CRM, e-commerce, etc.);\n- Automatizar lançamentos de contas a pagar e receber;\n- Consultar informações financeiras e contábeis em tempo real;\n- Criar e manter cadastros de clientes, produtos e serviços sempre atualizados;\n- Consultar notas fiscais eletrônicas (somente produtos NFe) - Em breve Serviços (NFS-e)\n\n## 🧭 Estrutura Geral das APIs\n\nA documentação das APIs Conta Azul está organizada por áreas funcionais.Abaixo, você encontra uma visão geral com o propósito de cada uma e links diretos para os respectivos guias técnicos.\nÁrea\nDescrição\nExemplo de Uso\nLink\n🔐 Autenticação\nAPIs para autenticação via OAuth2, geração de credenciais e acesso a metadados.\nCriar uma aplicação e obter tokens de acesso às APIs.\nVer documentação\n💰 Financeiro / Cobranças / Baixas\nControle completo de contas a pagar e receber, baixas, conciliações, cobranças e despesas.\nAutomatizar a baixa de títulos e conciliação de pagamentos.\nVer documentação\n🧾 Vendas\nCriação, atualização e consulta de vendas.\nCriar uma venda e replicar automaticamente na Conta Azul.\nVer documentação\n👥 Pessoas / Fornecedores\nCadastro e consulta de clientes, fornecedores .\nSincronizar automaticamente clientes entre sistemas.\nVer documentação\n📦 Produtos e Serviços\nGerenciamento de produtos e serviços: criação, atualização, estoque e valores.\nIntegrar catálogo de produtos do e-commerce com o ERP.\nVer documentação\n🧮 Notas Fiscais\nConsulta de notas fiscais de produtos e serviços.\nConsultar NFe emitidas\nVer documentação\n📑 Contratos\nGestão de contratos recorrentes.\nControlar contratos mensais e alocar despesas por centro de custo.\nVer documentação\n\n## ⚙️ Padrões Técnicos\n\n- Estilo: REST\n- Formato: JSON\n- Autenticação: OAuth 2.0\n- Códigos de retorno: HTTP padrão (200, 400, 401, 404, 429, 500)\n```\n200\n```\n\n```\n400\n```\n\n```\n401\n```\n\n```\n404\n```\n\n```\n429\n```\n\n```\n500\n```\n\n- Paginação: parâmetros page e size\n```\npage\n```\n\n```\nsize\n```\n\n- Data/hora: formato ISO 8601 (YYYY-MM-DDTHH:mm:ssZ)\n```\nYYYY-MM-DDTHH:mm:ssZ\n```\n\n## Futuro da API\n\nNo momento, algumas funcionalidades importantes ainda não estão disponíveis. Estamos constantemente trabalhando para aprimorar e expandir nossas capacidades, mas é importante que você esteja ciente das seguintes características atuais:\n- Ambiente de Homologação (Sandbox): não oferecemos um ambiente de sandbox dedicado. Para testes, você terá acesso a uma conta do desenvolvedor com duração de 30 dias, que pode ser estendida se necessário. Esta conta permite que você valide suas integrações em um ambiente realista\n- Webhooks: atualmente, a API não suporta webhooks, portanto, sua aplicação não receberá notificações automáticas sobre eventos ou mudanças de dados. Para manter seus dados atualizados, será preciso implementar um mecanismo de polling (consultas periódicas à API)\n- SDKs Oficiais: não dispomos de Software Development Kits (SDKs) oficiais para linguagens de programação. Sua integração deverá ser construída diretamente com chamadas HTTP e manipulação de JSON, sem o auxílio de bibliotecas pré-prontas específicas da Conta Azul\n\n## Fale Conosco\n\nPara eventuais dúvidas, a documentação é a sua melhor fonte. Recomendamos a leitura das guias de “OAuth 2.0”, “Guias de Uso” e “Erros Comuns”. Caso enfrente bugs ou indisponibilidades, por favor, entre em contato com o suporte do Chat pelo Portal do Desenvolvedor para tirar dúvidas e obter orientações sobre o uso das APIs.\n\n## Was this helpful?\n\n---\n\n### Autenticação na API da Conta Azul\nSource: https://developers.contaazul.com/auth\n\n- Visão geral\n\n## Autenticação na API da Conta AzulCopyCopy for LLMCopy page as Markdown for LLMsView as MarkdownOpen this page as MarkdownOpen in ChatGPTGet insights from ChatGPTOpen in ClaudeGet insights from ClaudeConnect to CursorInstall MCP server on CursorConnect to VS CodeInstall MCP server on VS Code\n\n- Copy for LLMCopy page as Markdown for LLMs\n- View as MarkdownOpen this page as Markdown\n- Open in ChatGPTGet insights from ChatGPT\n- Open in ClaudeGet insights from Claude\n- Connect to CursorInstall MCP server on Cursor\n- Connect to VS CodeInstall MCP server on VS Code\nEste guia detalha o processo de autenticação utilizando o fluxo Authorization Code do protocolo OAuth 2.0 para integração com a API da Conta Azul, permitindo acesso seguro aos recursos disponíveis.\n\n## Visão Geral do Fluxo OAuth 2.0\n\nA autenticação é o primeiro passo para garantir acesso seguro e autorizado aos recursos da API Conta Azul. O processo segue o padrão OAuth 2.0, utilizando o fluxo Authorization Code, o mais seguro e recomendado para aplicações que acessam dados em nome de um usuário.\nEste guia descreve, de forma detalhada, cada etapa necessária para autenticar sua aplicação, desde a solicitação do código de autorização até o uso do token de acesso.\nAo final, você será capaz de conectar sua aplicação à API da Conta Azul com segurança e boas práticas de integração.\n\n## 🎥 App de DESENVOLVIMENTO\n\nAssista ao vídeo abaixo para acompanhar, de forma prática, o fluxo de autenticação OAuth 2.0 utilizando um app de DESENVOLVIMENTO.\n\n## 🎥 App de PRODUÇÃO\n\nAssista ao vídeo abaixo para acompanhar, de forma prática, o fluxo de criação de credenciais e autenticação OAuth 2.0 utilizando um app de PRODUÇÃO.\n\n## Etapas do processo de autenticação\n\nA autenticação via OAuth 2.0 é composta por 4 etapas principais:\n- Solicitar o código de autorizaçãoInicia o fluxo de autenticação redirecionando o usuário para o login seguro.\nSolicitar o código de autorização\n- Inicia o fluxo de autenticação redirecionando o usuário para o login seguro.\n- Trocar o código pelo token de acesso (access_token)Após o login autorizado, sua aplicação recebe um código que será trocado por tokens de acesso.\nTrocar o código pelo token de acesso (access_token)\n- Após o login autorizado, sua aplicação recebe um código que será trocado por tokens de acesso.\n- Renovar o token de acesso (refresh_token)Quando o token expirar, ele deve ser renovado para continuar acessando os recursos da API.\nRenovar o token de acesso (refresh_token)\n- Quando o token expirar, ele deve ser renovado para continuar acessando os recursos da API.\n- Utilizar o token de acesso nas requisições à APIO token é enviado no cabeçalho de autenticação (Authorization: Bearer) em todas as chamadas.\nUtilizar o token de acesso nas requisições à API\n- O token é enviado no cabeçalho de autenticação (Authorization: Bearer) em todas as chamadas.\n\n## O que você vai aprender neste guia\n\nEntender o fluxo completo de autenticação OAuth 2.0.\nConfigurar corretamente sua aplicação no Portal do Desenvolvedor.\nExecutar as chamadas de autenticação e renovação de token.\nGarantir acesso seguro e contínuo aos endpoints da API Conta Azul.\n\n## Was this helpful?\n\n---\n\n### 📘 Consultar Parcela por ID -- Rateio, Categoria e Centro de Custo\nSource: https://developers.contaazul.com/get-parcela-por-id-rateio-categoria-centro-custo\n\n## 📘 Consultar Parcela por ID -- Rateio, Categoria e Centro"
+    "rawDocText": "# 🌐 Introdução às APIs Conta Azul\n\nAs **APIs da Conta Azul** permitem integrar sistemas externos ao ERP Conta Azul de forma segura, padronizada e escalável.\nElas oferecem recursos para automatizar processos **financeiros, vendas, cadastros de clientes e fornecedores, produtos e notas fiscais**, facilitando a sincronização de dados.\n\n## 🚀 O que você pode fazer com nossas APIs\n\nCom as APIs Conta Azul, é possível:\n\n- Integrar sistemas parceiros (BI, CRM, e-commerce, etc.);\n- Automatizar lançamentos de contas a pagar e receber;\n- Consultar informações financeiras e contábeis em tempo real;\n- Criar e manter cadastros de clientes, produtos e serviços sempre atualizados;\n- Consultar notas fiscais eletrônicas (somente produtos NFe) - Em breve Serviços (NFS-e)\n\n\n## 🧭 Estrutura Geral das APIs\n\nA documentação das APIs Conta Azul está organizada por **áreas funcionais**.\nAbaixo, você encontra uma visão geral com o propósito de cada uma e links diretos para os respectivos guias técnicos.\n\n| Área | Descrição | Exemplo de Uso | Link |\n|  --- | --- | --- | --- |\n| **🔐 Autenticação** | APIs para autenticação via OAuth2, geração de credenciais e acesso a metadados. | Criar uma aplicação e obter tokens de acesso às APIs. | [Ver documentação](https://developers.contaazul.com/auth) |\n| **💰 Financeiro / Cobranças / Baixas** | Controle completo de contas a pagar e receber, baixas, conciliações, cobranças e despesas. | Automatizar a baixa de títulos e conciliação de pagamentos. | [Ver documentação](https://developers.contaazul.com/docs/financial-apis-openapi) |\n| **🧾 Vendas** | Criação, atualização e consulta de vendas. | Criar uma venda e replicar automaticamente na Conta Azul. | [Ver documentação](https://developers.contaazul.com/docs/sales-apis-openapi) |\n| **👥 Pessoas / Fornecedores** | Cadastro e consulta de clientes, fornecedores . | Sincronizar automaticamente clientes entre sistemas. | [Ver documentação](https://developers.contaazul.com/open-api-docs/open-api-person) |\n| **📦 Produtos e Serviços** | Gerenciamento de produtos e serviços: criação, atualização, estoque e valores. | Integrar catálogo de produtos do e-commerce com o ERP. | [Ver documentação](https://developers.contaazul.com/open-api-docs/open-api-inventory) |\n| **🧮 Notas Fiscais** | Consulta de notas fiscais de produtos e serviços. | Consultar NFe emitidas | [Ver documentação](https://developers.contaazul.com/open-api-docs/open-api-invoice) |\n| **📑 Contratos** | Gestão de contratos recorrentes. | Controlar contratos mensais e alocar despesas por centro de custo. | [Ver documentação](https://developers.contaazul.com/docs/contracts-apis-openapi) |\n|  |  |  |  |\n\n\n## ⚙️ Padrões Técnicos\n\n- **Estilo:** REST\n- **Formato:** JSON\n- **Autenticação:** OAuth 2.0\n- **Códigos de retorno:** HTTP padrão (`200`, `400`, `401`, `404`, `429`, `500`)\n- **Paginação:** parâmetros `page` e `size`\n- **Data/hora:** formato ISO 8601 (`YYYY-MM-DDTHH:mm:ssZ`)\n\n\n## Futuro da API\n\nNo momento, algumas funcionalidades importantes ainda não estão disponíveis. Estamos constantemente trabalhando para aprimorar e expandir nossas capacidades, mas é importante que você esteja ciente das seguintes características atuais:\n\n* **Ambiente de Homologação (Sandbox):** não oferecemos um ambiente de sandbox dedicado. Para testes, você terá acesso a uma **conta do desenvolvedor com duração de 30 dias**, que pode ser estendida se necessário. Esta conta permite que você valide suas integrações em um ambiente realista\n* **Webhooks:** atualmente, a API **não suporta webhooks**, portanto, sua aplicação não receberá notificações automáticas sobre eventos ou mudanças de dados. Para manter seus dados atualizados, será preciso implementar um mecanismo de *polling* (consultas periódicas à API)\n* **SDKs Oficiais:** não dispomos de **Software Development Kits (SDKs) oficiais** para linguagens de programação. Sua integração deverá ser construída diretamente com chamadas HTTP e manipulação de JSON, sem o auxílio de bibliotecas pré-prontas específicas da Conta Azul\n\n\n### Fale Conosco\n\nPara eventuais dúvidas, a **documentação é a sua melhor fonte**. Recomendamos a leitura das guias de **“OAuth 2.0”**, **“Guias de Uso”** e **“Erros Comuns”**. Caso enfrente bugs ou indisponibilidades, por favor, entre em contato com o suporte do Chat pelo Portal do Desenvolvedor para tirar dúvidas e obter orientações sobre o uso das APIs.\n\n### Source: https://developers.contaazul.com/docs/sales-apis-openapi\n\n```\n# Vendas A API de Vendas (v1) permite que sistemas externos integrem funcionalidades de vendas diretamente com o ERP da Conta Azul. Com ela, é possível criar, atualizar, consultar e excluir vendas, bem como recuperar informações detalhadas sobre os itens das vendas e gerar documentos associados, como PDFs de vendas. Se desejar aprofundar o entendimento das regras de negócio aplicadas pelo ERP, recomendamos, de forma opcional a consulta à nossa Central de Ajuda: [https://ajuda.contaazul.com/hc/pt-br/sections/19712754054285-Controle-de-vendas](https://ajuda.contaazul.com/hc/pt-br/sections/19712754054285-Controle-de-vendas) Version: v1 ## Servers Servidor de produção ``` https://api-v2.contaazul.com ``` ## Security ### BearerAuth Token de autorização Bearer JWT Type: http Scheme: bearer Bearer Format: JWT ## Download OpenAPI description [Vendas](https://developers.contaazul.com/_bundle/docs/sales-apis-openapi.yaml) ## v1 Conjunto de recursos para acompanhar e administrar operações relacionadas a vendas - esses recursos incluem retornar os vendedores, retornar a venda por id, atualizar uma venda por id, retornar as vendas por filtro, criar uma nova venda, retornar o PDF de uma venda, excluir vendas em lote e retornar os itens de uma venda pelo id da venda ### Retornar os vendedores - [GET /v1/venda/vendedores](https://developers.contaazul.com/docs/sales-apis-openapi/v1/listvendedores.md): Retorna a lista de vendedores cadastrados na Conta Azul. Útil quando você precisa atribuir um vendedor a uma venda ou exibir opções de vendedores em sua interface. ### Retornar a venda por id - [GET /v1/venda/{id}](https://developers.contaazul.com/docs/sales-apis-openapi/v1/getvendabyid.md): Recupera os detalhes de uma venda específica por ID (pode ser UUID ou id legado). Útil quando quiser exibir ou sincronizar todos os dados de uma venda específica. ### Atualizar uma venda por id - [PUT /v1/venda/{id}](https://developers.contaazul.com/docs/sales-apis-openapi/v1/editsale.md): Permite atualizar uma venda existente. Útil se sua aplicação permite editar vendas depois que foram criadas no ERP. ### Retornar as vendas por filtro - [GET /v1/venda/busca](https://developers.contaazul.com/docs/sales-apis-openapi/v1/searchvendas.md): Retorna as vendas filtradas, podendo fazer uso de parâmetros de consulta como data inicial/final, cliente, situação, tipos de venda, IDs de produtos, IDs de categorias, paginação, entre outros. Use esse endpoint para construir telas de listagem, dashboards ou relatórios de vendas. ### Criar uma nova venda - [POST /v1/venda](https://developers.contaazul.com/docs/sales-apis-openapi/v1/createvenda.md): Cria uma nova venda no sistema da Conta Azul. Ideal para registrar vendas vindas de sistemas externos diretamente no ERP da Conta Azul. ### Retornar o PDF de uma venda - [GET /v1/venda/{id}/imprimir](https://developers.contaazul.com/docs/sales-apis-openapi/v1/printvendapdf.md): Gera e retorna um PDF da venda identificada pelo ID. Use quando precisar mostrar ao usuário ou armazenar uma versão impressa da venda. ### Excluir vendas em lote - [POST /v1/venda/exclusao-lote](https://developers.contaazul.com/docs/sales-apis-openapi/v1/deletevendasbatch.md): Permite excluir várias vendas de uma vez. Útil para excluir em lote vendas de forma automatizada. Útil durante sincronizações ou processos de limpeza de dados. ### Retornar os itens de uma venda pelo id da venda - [GET /v1/venda/{id_venda}/itens](https://developers.contaazul.com/docs/sales-apis-openapi/v1/getvendaitens.md): Retorna a lista de itens de uma venda, dado o ID da venda. Use para exibir um detalhe da venda (todos produtos/serviços) ou para sincronizar os itens da venda para outros sistemas. ### Retornar o próximo número de venda disponível - [GET /v1/venda/proximo-numero](https://developers.contaazul.com/docs/sales-apis-openapi/v1/getnextvendanumber.md): Retorna o próximo número de venda disponível, segundo a numeração usada no ERP da Conta Azul. Pode ser usado antes de criar uma venda para garantir que você está usando uma sequência de número válida/nova.\n```\n\n### Source: https://developers.contaazul.com/open-api-docs/open-api-invoice\n\n```\n# Notas fiscais A API de Notas Fiscais (v1) tem como objetivo permitir a consulta de documentos fiscais de forma programática. No momento, o suporte disponível é apenas para consulta de notas de produto NF-e emitidas no ERP, permitindo que sistemas externos recuperem informações fiscais, validem dados e integrem essas notas aos seus próprios fluxos. Essa API possibilita acessar detalhes das notas já emitidas, acompanhar informações essenciais para controle fiscal e garantir maior eficiência na integração entre sistemas. Se desejar aprofundar o entendimento das regras de negócio aplicadas pelo ERP, recomendamos, de forma opcional a consulta à nossa Central de Ajuda: [https://ajuda.contaazul.com/hc/pt-br/articles/4424707438605-Como-acessar-notas-fiscais-emitidas-na-Conta-Azul](https://ajuda.contaazul.com/hc/pt-br/articles/4424707438605-Como-acessar-notas-fiscais-emitidas-na-Conta-Azul) Version: v1 ## Servers ``` https://api-v2.contaazul.com ``` ## Security ### BearerAuth Digite **'Bearer &lt;JWT&gt;'**, onde JWT é o access_token recebido no login (passo 2 do fluxo de autenticação). Type: apiKey In: header Name: Authorization ## Download OpenAPI description [Notas fiscais](https://developers.contaazul.com/_bundle/open-api-docs/open-api-invoice.yaml) ## v1 Operações relacionadas a notas fiscais ### Retornar as notas fiscais por filtro - [GET /v1/notas-fiscais](https://developers.contaazul.com/open-api-docs/open-api-invoice/v1/obternotasfiscaisporfiltro.md): Permite consultar todas as notas fiscais de produto (NFe) já emitidas no ERP, com suporte a filtros como data, número da nota, id da venda.. Este endpoint retorna somente NFe com status EMITIDA e CORRIGIDA COM SUCESSO (outros status em construção). Essa funcionalidade facilita o monitoramento fiscal, exportação para relatórios ou integração com contabilidade. ### Retornar notas fiscais de serviço por filtros - [GET /v1/notas-fiscais-servico](https://developers.contaazul.com/open-api-docs/open-api-invoice/v1/obternotasfiscaisservicoporfiltro.md): Permite consultar todas as notas fiscais de serviço (NFS-e) já emitidas no ERP, com uso de filtros como data, número da nota, id da venda.. Este endpoint retorna NFS-e com todos os status possíveis a partir da emissão. Essa funcionalidade facilita o monitoramento fiscal, exportação para relatórios ou integração com contabilidade. ### Vincular nota fiscal a mdfe - [POST /v1/notas-fiscais/vinculo-mdfe](https://developers.contaazul.com/open-api-docs/open-api-invoice/v1/vincularnotafiscalmdfe.md): Permite associar uma ou mais notas fiscais (identificadas pelas chaves de acesso) a um MDF-e (Manifesto Eletrônico de Documento Fiscal). É possível também informar o status do vínculo (ex: \"AUTORIZADO\", \"ENCERRADO\", \"CANCELADO\"). Apoio no controle logístico e fiscal. ### Retornar a nota fiscal por chave - [GET /v1/notas-fiscais/{chave}](https://developers.contaazul.com/open-api-docs/open-api-invoice/v1/obternotafiscalporchave.md): Permite consultar dados de uma nota fiscal específica, buscando pela sua chave de acesso\n```\n\n### Source: https://developers.contaazul.com/get-parcela-por-id-rateio-categoria-centro-custo\n\n```\n# 📘 Consultar Parcela por ID -- Rateio, Categoria e Centro de Custo Este guia mostra como utilizar o endpoint `GET /v1/financeiro/eventos-financeiros/parcelas/{id}` para obter os detalhes de uma **parcela específica** de um evento financeiro (conta a pagar ou a receber). Na resposta, é possível visualizar informações de **Rateio**, **Categoria** e **Centro de Custo**. ## 🔗 Endpoint ``` GET https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/{id} ``` - **{id}** → ID da parcela (UUID) obtido na criação ou listagem de eventos financeiros. ## 🔑 Autenticação Este endpoint requer autenticação via **OAuth2**. Inclua o token de acesso no header da requisição: ``` Authorization: Bearer {access_token} Content-Type: application/json ``` ## 📥 Exemplo de Requisição ``` GET https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros/parcelas/35473eec-4e74-11ee-b500-9f61de8a8b8b Authorization: Bearer {access_token} Content-Type: application/json ``` ## 📤 Exemplo de Resposta (trecho relevante) ``` { \"id\": \"35473eec-4e74-11ee-b500-9f61de8a8b8b\", \"status\": \"PENDENTE\", \"valor_pago\": 10, \"data_vencimento\": \"01/01/2030\", \"descricao\": \"bla bla bla\", \"evento\": { \"tipo\": \"RECEITA\", \"rateio\": [ { \"id_categoria\": \"35473eec-4e74-11ee-b500-9f61de8a8b8b\", \"nome_categoria\": \"ABC\", \"valor\": 20.5, \"rateio_centro_custo\": [ { \"id_centro_custo\": \"35473eec-4e74-11ee-b500-9f61de8a8b8b\", \"nome_centro_custo\": \"ABC\", \"valor\": 30.5 } ] } ] } } ``` ## 🔍 Localizando Rateio, Categoria e Centro de Custo ### 1. **Rateio (`evento.rateio`)** - Localização: `evento.rateio` - Tipo: Array de objetos - Cada item representa uma divisão do valor da parcela. - Campos principais: - `valor` → Valor destinado a essa parte do rateio. - `id_categoria` / `nome_categoria` → Categoria vinculada. - `rateio_centro_custo` → Lista de centros de custo associados ao rateio. ### 2. **Categoria** Dentro de cada item de `evento.rateio`: ``` { \"id_categoria\": \"UUID\", \"nome_categoria\": \"Nome da Categoria\" } ``` ### 3. **Centro de Custo** Dentro de `rateio_centro_custo`: ``` { \"id_centro_custo\": \"UUID\", \"nome_centro_custo\": \"Nome do Centro de Custo\", \"valor\": 30.5 } ``` ## ✅ Boas Práticas - Nem toda parcela terá **rateio** → se `evento.rateio` vier vazio, significa que não houve distribuição. - Utilize os **IDs** (`id_categoria`, `id_centro_custo`) para consultar detalhes em outros endpoints: - `GET /v1/categorias` - `GET /v1/centro-de-custo` - Quando houver rateio, valide se a soma de `rateio.valor` ou de `rateio.rateio_centro_custo[].valor` corresponde ao valor total da parcela. ## 📚 Recursos Relacionados - [Autenticação OAuth2](https://developers.contaazul.com/guide) - [GET /v1/categorias/](https://developers.contaazul.com/docs/financial-apis-openapi/v1/searchcategories) - [GET /v1/centro-de-custo/](https://developers.contaazul.com/docs/financial-apis-openapi/v1/searchcostcenters)\n```",
+    "entityExamples": {
+      "invoices": {
+        "envelope": "vendas",
+        "responseExample": ""
+      },
+      "receivables": {
+        "envelope": "",
+        "responseExample": ""
+      },
+      "payables": {
+        "envelope": "",
+        "responseExample": ""
+      }
+    }
   },
   "mapping": {
     "entityMappings": {
       "invoices": {
         "endpoint": {
           "method": "GET",
-          "path": "/v1/financeiro/cobranca/parcela/{id}",
-          "action": "ConsultarParcela",
+          "path": "/v1/venda/busca",
+          "action": "List sales",
           "queryParams": [],
           "bodyParams": []
         },
-        "envelope": "parcela",
+        "envelope": "vendas",
         "dePara": {
           "external_id": [
-            "id"
+            "id",
+            "numero"
           ],
           "customer_name": [
-            "cliente.nome"
+            "cliente.nome",
+            "cliente.razao_social"
           ],
           "issue_date": [
-            "dataEmissao"
+            "data"
           ],
           "gross_amount": [
-            "valorTotal"
+            "valor_total"
           ]
         }
       },
       "receivables": {
         "endpoint": {
           "method": "GET",
-          "path": "/v1/financeiro/cobranca/parcela/{id}",
-          "action": "ConsultarParcela",
+          "path": "/v1/venda/busca",
+          "action": "List sales (closest alternative for receivables)",
           "queryParams": [],
           "bodyParams": []
         },
-        "envelope": "parcela",
+        "envelope": "",
         "dePara": {
           "external_id": [
-            "id"
+            "id",
+            "numero"
           ],
           "customer_name": [
-            "cliente.nome"
+            "cliente.nome",
+            "cliente.razao_social"
           ],
           "issue_date": [
-            "dataEmissao"
+            "data"
           ],
           "due_date": [
-            "dataVencimento"
+            "data_vencimento"
           ],
           "gross_amount": [
-            "valorTotal"
+            "valor_total"
           ],
           "paid_amount": [
-            "valorPago"
+            "valor_pago"
           ],
           "document_type": [
-            "tipoDocumento"
+            "tipo_documento"
           ],
           "document_number": [
-            "numeroDocumento"
+            "numero_documento"
           ]
         }
       },
       "payables": {
         "endpoint": {
           "method": "GET",
-          "path": "/v1/financeiro/cobranca/parcela/{id}",
-          "action": "ConsultarParcela",
+          "path": "/v1/venda/busca",
+          "action": "List sales (closest alternative for payables)",
           "queryParams": [],
           "bodyParams": []
         },
-        "envelope": "parcela",
+        "envelope": "",
         "dePara": {
           "external_id": [
-            "id"
+            "id",
+            "numero"
           ],
           "supplier_name": [
-            "fornecedor.nome"
+            "fornecedor.nome",
+            "fornecedor.razao_social"
           ],
           "issue_date": [
-            "dataEmissao"
+            "data"
           ],
           "due_date": [
-            "dataVencimento"
+            "data_vencimento"
           ],
           "gross_amount": [
-            "valorTotal"
+            "valor_total"
           ],
           "paid_amount": [
-            "valorPago"
+            "valor_pago"
           ],
           "document_type": [
-            "tipoDocumento"
+            "tipo_documento"
           ],
           "document_number": [
-            "numeroDocumento"
+            "numero_documento"
           ],
           "category": [
             "categoria"
@@ -161,33 +209,36 @@
       "customers": {
         "endpoint": {
           "method": "GET",
-          "path": "/v1/pessoas/clientes/{id}",
-          "action": "ConsultarCliente",
+          "path": "/v1/venda/busca",
+          "action": "List sales (closest alternative for customers)",
           "queryParams": [],
           "bodyParams": []
         },
-        "envelope": "cliente",
+        "envelope": "",
         "dePara": {
           "external_id": [
-            "id"
+            "id",
+            "numero"
           ],
           "name": [
-            "nome"
+            "cliente.nome",
+            "cliente.razao_social"
           ],
           "document": [
-            "documento"
+            "cliente.cnpj",
+            "cliente.cpf"
           ],
           "email": [
-            "email"
+            "cliente.email"
           ],
           "phone": [
-            "telefone"
+            "cliente.telefone"
           ],
           "city": [
-            "cidade"
+            "cliente.endereco.cidade"
           ],
           "state": [
-            "estado"
+            "cliente.endereco.estado"
           ]
         }
       }

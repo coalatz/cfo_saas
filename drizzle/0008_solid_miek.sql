@@ -1,0 +1,1 @@
+ALTER TABLE `agent_model_configs` MODIFY COLUMN `agentName` enum('discovery','mapping','generator','generator_mapper','extractor') NOT NULL;

@@ -148,18 +148,30 @@ export function createLLM(config: ModelConfig): BaseChatModel {
 
     case "manus":
     default: {
-      // Usar a integração nativa do Ollama via LangChain Community
-      const rawUrl = ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-        ? ENV.forgeApiUrl
-        : "http://localhost:11434";
-      // Se a URL terminar em /v1 (como no mock da OpenAI), removemos pois o ChatOllama usa a raiz
+      // Na plataforma Manus: usa o Forge API (OpenAI-compatible)
+      if (ENV.forgeApiUrl && ENV.forgeApiKey) {
+        const baseURL = ENV.forgeApiUrl.endsWith("/v1")
+          ? ENV.forgeApiUrl
+          : `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1`;
+
+        return new ChatOpenAI({
+          model: ENV.llmModel || "gpt-4o",
+          temperature,
+          maxTokens,
+          apiKey: ENV.forgeApiKey,
+          configuration: { baseURL },
+        });
+      }
+
+      // Fallback local: Ollama
+      const rawUrl = ENV.forgeApiUrl?.trim() || "http://localhost:11434";
       const baseUrl = rawUrl.replace(/\/v1\/?$/, "");
 
       return new ChatOllama({
         model: ENV.llmModel || "nemotron-3-super:cloud",
         temperature,
         baseUrl,
-        numCtx: 32768, // Agora o Ollama VAI respeitar esse limite (32k tokens)!
+        numCtx: 32768,
       });
     }
   }

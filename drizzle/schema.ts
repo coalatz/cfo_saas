@@ -207,7 +207,7 @@ export type InsertExtractionLog = typeof extractionLogs.$inferInsert;
 export const agentModelConfigs = mysqlTable("agent_model_configs", {
   id: int("id").autoincrement().primaryKey(),
   tenantId: int("tenantId").default(0).notNull(),  // 0 = global default
-  agentName: mysqlEnum("agentName", ["discovery", "mapping", "generator", "extractor"]).notNull(),
+  agentName: mysqlEnum("agentName", ["discovery", "mapping", "generator", "generator_mapper", "extractor"]).notNull(),
   provider: varchar("provider", { length: 50 }).default("manus").notNull(),
   modelId: varchar("modelId", { length: 100 }).default("default").notNull(),
   temperature: decimal("temperature", { precision: 3, scale: 2 }).default("0.10"),

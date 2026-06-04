@@ -19,7 +19,12 @@
  */
 
 import { Router, type Express } from "express";
-import { buildAuthorizeUrl, handleCallback, getOAuthStatus, refreshAccessToken } from "./contaAzulOAuth";
+import {
+  buildAuthorizeUrl,
+  handleCallback,
+  getOAuthStatus,
+  refreshAccessToken,
+} from "./contaAzulOAuth";
 import { getDb } from "./db";
 import { erpConfigs } from "../drizzle/schema";
 import { and, eq } from "drizzle-orm";
@@ -38,32 +43,59 @@ export function registerContaAzulOAuthRoutes(app: Express) {
       const redirectUri = req.query.redirectUri as string;
 
       if (!tenantId || !redirectUri) {
-        res.status(400).json({ error: "tenantId and redirectUri are required" });
+        res
+          .status(400)
+          .json({ error: "tenantId and redirectUri are required" });
         return;
       }
 
       // Fetch credentials from DB
       const db = await getDb();
-      if (!db) { res.status(503).json({ error: "Database unavailable" }); return; }
+      if (!db) {
+        res.status(503).json({ error: "Database unavailable" });
+        return;
+      }
 
       const rows = await db
         .select()
         .from(erpConfigs)
-        .where(and(eq(erpConfigs.tenantId, tenantId), eq(erpConfigs.erpType, "conta_azul")))
+        .where(
+          and(
+            eq(erpConfigs.tenantId, tenantId),
+            eq(erpConfigs.erpType, "conta_azul")
+          )
+        )
         .limit(1);
 
       if (!rows[0]) {
-        res.status(404).json({ error: "Conta Azul config not found for this tenant. Add credentials first." });
+        res
+          .status(404)
+          .json({
+            error:
+              "Conta Azul config not found for this tenant. Add credentials first.",
+          });
         return;
       }
 
-      const credentials = rows[0].credentials as { client_id: string; client_secret: string };
+      const credentials = rows[0].credentials as {
+        client_id: string;
+        client_secret: string;
+      };
       if (!credentials.client_id || !credentials.client_secret) {
-        res.status(400).json({ error: "client_id and client_secret must be configured before OAuth" });
+        res
+          .status(400)
+          .json({
+            error:
+              "client_id and client_secret must be configured before OAuth",
+          });
         return;
       }
 
-      const authorizeUrl = await buildAuthorizeUrl(tenantId, redirectUri, credentials);
+      const authorizeUrl = await buildAuthorizeUrl(
+        tenantId,
+        redirectUri,
+        credentials
+      );
       res.json({ authorizeUrl });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -84,22 +116,47 @@ export function registerContaAzulOAuthRoutes(app: Express) {
     const frontendBase = `${req.protocol}://${req.get("host")}`;
 
     if (!code || !state) {
-      res.redirect(`${frontendBase}/tenants?oauth=error&message=Missing+code+or+state`);
+      res.redirect(
+        `${frontendBase}/tenants?oauth=error&message=Missing+code+or+state`
+      );
       return;
     }
 
     try {
+      console.log("ContaAzul callback received:", {
+        url: req.originalUrl,
+        headers: req.headers,
+        query: req.query,
+        ip: req.ip,
+        host: req.get("host"),
+      });
       const result = await handleCallback(code, state);
+      console.log(
+        "ContaAzul callback handled successfully for tenant",
+        result.tenantId
+      );
       res.redirect(`${frontendBase}/tenants/${result.tenantId}?oauth=success`);
     } catch (err: unknown) {
-      const message = encodeURIComponent(err instanceof Error ? err.message : String(err));
+      console.error(
+        "Error handling ContaAzul callback:",
+        err instanceof Error ? err.stack || err.message : String(err)
+      );
+      const message = encodeURIComponent(
+        err instanceof Error ? err.message : String(err)
+      );
       // Try to extract tenantId from state for a better redirect
       let tenantId = "";
       try {
-        const decoded = JSON.parse(Buffer.from(state, "base64url").toString("utf-8"));
+        const decoded = JSON.parse(
+          Buffer.from(state, "base64url").toString("utf-8")
+        );
         tenantId = decoded.tenantId ? `/${decoded.tenantId}` : "";
-      } catch { /* ignore */ }
-      res.redirect(`${frontendBase}/tenants${tenantId}?oauth=error&message=${message}`);
+      } catch {
+        /* ignore */
+      }
+      res.redirect(
+        `${frontendBase}/tenants${tenantId}?oauth=error&message=${message}`
+      );
     }
   });
 
@@ -111,7 +168,10 @@ export function registerContaAzulOAuthRoutes(app: Express) {
   router.get("/status", async (req, res) => {
     try {
       const tenantId = parseInt(req.query.tenantId as string);
-      if (!tenantId) { res.status(400).json({ error: "tenantId is required" }); return; }
+      if (!tenantId) {
+        res.status(400).json({ error: "tenantId is required" });
+        return;
+      }
       const status = await getOAuthStatus(tenantId);
       res.json(status);
     } catch (err: unknown) {
@@ -128,7 +188,10 @@ export function registerContaAzulOAuthRoutes(app: Express) {
   router.post("/refresh", async (req, res) => {
     try {
       const tenantId = parseInt(req.body.tenantId);
-      if (!tenantId) { res.status(400).json({ error: "tenantId is required" }); return; }
+      if (!tenantId) {
+        res.status(400).json({ error: "tenantId is required" });
+        return;
+      }
       await refreshAccessToken(tenantId);
       const status = await getOAuthStatus(tenantId);
       res.json({ success: true, expiresAt: status.expiresAt });
@@ -146,22 +209,38 @@ export function registerContaAzulOAuthRoutes(app: Express) {
   router.post("/disconnect", async (req, res) => {
     try {
       const tenantId = parseInt(req.body.tenantId);
-      if (!tenantId) { res.status(400).json({ error: "tenantId is required" }); return; }
+      if (!tenantId) {
+        res.status(400).json({ error: "tenantId is required" });
+        return;
+      }
 
       const db = await getDb();
-      if (!db) { res.status(503).json({ error: "Database unavailable" }); return; }
+      if (!db) {
+        res.status(503).json({ error: "Database unavailable" });
+        return;
+      }
 
       // Read current credentials to preserve client_id/client_secret, clear tokens
       const rows = await db
         .select()
         .from(erpConfigs)
-        .where(and(eq(erpConfigs.tenantId, tenantId), eq(erpConfigs.erpType, "conta_azul")))
+        .where(
+          and(
+            eq(erpConfigs.tenantId, tenantId),
+            eq(erpConfigs.erpType, "conta_azul")
+          )
+        )
         .limit(1);
 
-      if (!rows[0]) { res.status(404).json({ error: "Config not found" }); return; }
+      if (!rows[0]) {
+        res.status(404).json({ error: "Config not found" });
+        return;
+      }
 
       const creds = rows[0].credentials as Record<string, unknown>;
-      const { access_token: _removed, ...cleanCreds } = creds as { access_token?: unknown } & Record<string, unknown>;
+      const { access_token: _removed, ...cleanCreds } = creds as {
+        access_token?: unknown;
+      } & Record<string, unknown>;
 
       await db
         .update(erpConfigs)
@@ -172,7 +251,12 @@ export function registerContaAzulOAuthRoutes(app: Express) {
           oauthState: null,
           status: "configured",
         })
-        .where(and(eq(erpConfigs.tenantId, tenantId), eq(erpConfigs.erpType, "conta_azul")));
+        .where(
+          and(
+            eq(erpConfigs.tenantId, tenantId),
+            eq(erpConfigs.erpType, "conta_azul")
+          )
+        );
 
       res.json({ success: true });
     } catch (err: unknown) {
