@@ -127,6 +127,13 @@ const agentsRouter = router({
       const result = await runDiscoveryOnly(input.erpType, input.docUrl);
       return result;
     }),
+
+  getPipelineLogs: publicProcedure
+    .input(z.object({ pipelineId: z.number() }))
+    .query(async ({ input }) => {
+      const { getLogs } = await import("./logger");
+      return getLogs(input.pipelineId);
+    }),
 });
 
 // ─── Model Configs Router ──────────────────────────────────────────────────────────────────

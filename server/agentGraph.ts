@@ -46,6 +46,7 @@ import {
   upsertReceivable,
 } from "./db";
 import { storagePut } from "./storage";
+import { pipelineLocalStorage } from "./logger";
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -1930,20 +1931,22 @@ export async function runFullPipeline(
   });
 
   try {
-    const result = await pipelineGraph.invoke({
-      pipelineId,
-      tenantId,
-      erpName,
-      credentials,
-      docUrl,
-      modelConfigs,
-      discoveryResult: undefined,
-      mappingResult: undefined,
-      generatorResult: undefined,
-      extractorResult: undefined,
-      error: undefined,
-      retryCount: 0,
-      lastCodeError: undefined,
+    const result = await pipelineLocalStorage.run({ pipelineId }, async () => {
+      return await pipelineGraph.invoke({
+        pipelineId,
+        tenantId,
+        erpName,
+        credentials,
+        docUrl,
+        modelConfigs,
+        discoveryResult: undefined,
+        mappingResult: undefined,
+        generatorResult: undefined,
+        extractorResult: undefined,
+        error: undefined,
+        retryCount: 0,
+        lastCodeError: undefined,
+      });
     });
 
     return {

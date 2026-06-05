@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { ScrollText, CheckCircle2, XCircle, Loader2, AlertTriangle, Clock } from "lucide-react";
+import { ScrollText, CheckCircle2, XCircle, Loader2, AlertTriangle, Clock, ChevronLeft } from "lucide-react";
 import { ERPBadge, StatusBadge } from "@/components/ui/StatusBadge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -38,6 +39,12 @@ export default function Logs() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
+          <div className="mb-2 -ml-3">
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground" onClick={() => window.history.back()}>
+              <ChevronLeft className="w-4 h-4" />
+              Voltar
+            </Button>
+          </div>
           <h1 className="text-xl font-semibold text-foreground">Logs de Extração</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Histórico de execuções dos agentes por tenant</p>
         </div>

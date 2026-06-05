@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useSearch } from "wouter";
-import { Settings2, Plus, Trash2, Bot, Save, ChevronDown } from "lucide-react";
+import { Settings2, Plus, Trash2, Bot, Save, ChevronDown, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -47,27 +47,24 @@ function AddConfigForm({
   const [maxTokens, setMaxTokens] = useState("2048");
   const [apiKey, setApiKey] = useState("");
 
-  const { data: availableModels = {} } = trpc.modelConfigs.availableModels.useQuery();
-
+  const utils = trpc.useUtils();
   const saveMutation = trpc.modelConfigs.save.useMutation({
     onSuccess: () => {
-      toast.success("Configuração salva");
+      utils.modelConfigs.list.invalidate();
+      toast.success("Configuração salva com sucesso");
       onSuccess();
     },
     onError: (e) => toast.error(e.message),
   });
 
-  type ModelEntry = { id: string; label: string };
-  const modelsForProvider: ModelEntry[] = (availableModels as Record<string, ModelEntry[]>)[provider] ?? [];
-
   return (
-    <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-        <Plus className="w-4 h-4 text-primary" />
-        Adicionar / Atualizar Configuração
-      </h3>
+    <div className="bg-muted/30 border border-border rounded-xl p-5 space-y-5 animate-in fade-in slide-in-from-top-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">Nova Configuração</h3>
+        <Button variant="ghost" size="sm" onClick={onSuccess} className="h-8">Cancelar</Button>
+      </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Agente</Label>
           <Select value={agentName} onValueChange={(v) => setAgentName(v as AgentName)}>
@@ -76,23 +73,17 @@ function AddConfigForm({
             </SelectTrigger>
             <SelectContent>
               {Object.entries(AGENT_LABELS).map(([k, v]) => (
-                <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                <SelectItem key={k} value={k}>
+                  <span className={v.color}>{v.label}</span>
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Provedor</Label>
-          <Select value={provider} onValueChange={(v) => { 
-            setProvider(v as Provider); 
-            const newModels = (availableModels as any)[v];
-            if (newModels && newModels.length > 0) {
-              setModelId(newModels[0].id); 
-            } else {
-              setModelId("default");
-            }
-          }}>
+          <Label className="text-xs text-muted-foreground">Provedor LLM</Label>
+          <Select value={provider} onValueChange={(v) => setProvider(v as Provider)}>
             <SelectTrigger className="bg-input border-border text-sm">
               <SelectValue />
             </SelectTrigger>
@@ -103,70 +94,52 @@ function AddConfigForm({
             </SelectContent>
           </Select>
         </div>
-      </div>
 
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">Modelo</Label>
-        {modelsForProvider.length > 0 ? (
-          <Select value={modelId} onValueChange={setModelId}>
-            <SelectTrigger className="bg-input border-border text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {modelsForProvider.map((m) => (
-                <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : (
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Modelo</Label>
           <Input
             value={modelId}
             onChange={(e) => setModelId(e.target.value)}
-            placeholder="ex: gpt-4o, claude-3-5-sonnet-20241022"
+            placeholder="Ex: gpt-4o, claude-3-opus-20240229"
+            className="bg-input border-border text-sm"
+          />
+        </div>
+
+        <div className="space-y-1.5 flex gap-3">
+          <div className="flex-1 space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Temperatura</Label>
+            <Input
+              type="number"
+              step="0.1"
+              min="0"
+              max="2"
+              value={temperature}
+              onChange={(e) => setTemperature(e.target.value)}
+              className="bg-input border-border text-sm"
+            />
+          </div>
+          <div className="flex-1 space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Max Tokens</Label>
+            <Input
+              type="number"
+              step="256"
+              value={maxTokens}
+              onChange={(e) => setMaxTokens(e.target.value)}
+              className="bg-input border-border text-sm"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5 md:col-span-2">
+          <Label className="text-xs text-muted-foreground">API Key (opcional, se não houver ENV global)</Label>
+          <Input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="sk-..."
             className="bg-input border-border text-sm font-mono"
           />
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Temperature (0–2)</Label>
-          <Input
-            type="number"
-            min="0"
-            max="2"
-            step="0.05"
-            value={temperature}
-            onChange={(e) => setTemperature(e.target.value)}
-            className="bg-input border-border text-sm"
-          />
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Max Tokens</Label>
-          <Input
-            type="number"
-            min="64"
-            max="32000"
-            step="256"
-            value={maxTokens}
-            onChange={(e) => setMaxTokens(e.target.value)}
-            className="bg-input border-border text-sm"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">API Key (obrigatório caso não tenha configurado no servidor)</Label>
-        <Input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="sk-..."
-          className="bg-input border-border text-sm font-mono"
-        />
-        <p className="text-xs text-muted-foreground">
-          Preencha com a sua chave de API para habilitar este agente.
-        </p>
       </div>
 
       <Button
@@ -181,7 +154,7 @@ function AddConfigForm({
             apiKey: apiKey || undefined,
           })
         }
-        disabled={!modelId || saveMutation.isPending}
+        disabled={saveMutation.isPending || !modelId}
         className="w-full bg-primary text-primary-foreground gap-2"
       >
         <Save className="w-4 h-4" />
@@ -216,12 +189,19 @@ export default function ModelConfigs() {
   });
 
   const selectedTenant = tenants.find((t) => t.id === selectedTenantId);
+  const [isAdding, setIsAdding] = useState(false);
 
   return (
     <AppLayout>
       <div className="space-y-6">
         {/* Header */}
         <div>
+          <div className="mb-2 -ml-3">
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground" onClick={() => window.history.back()}>
+              <ChevronLeft className="w-4 h-4" />
+              Voltar
+            </Button>
+          </div>
           <h1 className="text-2xl font-semibold text-foreground flex items-center gap-3">
             <Settings2 className="w-6 h-6 text-primary" />
             Configuração de Modelos IA

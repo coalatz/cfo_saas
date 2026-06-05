@@ -47,6 +47,12 @@ export default function Invoices() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
+          <div className="mb-2 -ml-3">
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground" onClick={() => window.history.back()}>
+              <ChevronLeft className="w-4 h-4" />
+              Voltar
+            </Button>
+          </div>
           <h1 className="text-xl font-semibold text-foreground">Invoices</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Dados canônicos extraídos dos ERPs</p>
         </div>

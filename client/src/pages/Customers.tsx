@@ -55,6 +55,12 @@ export default function Customers() {
       <div className="space-y-8">
         {/* Header */}
         <div>
+          <div className="mb-2 -ml-3">
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground" onClick={() => window.history.back()}>
+              <ChevronLeft className="w-4 h-4" />
+              Voltar
+            </Button>
+          </div>
           <h1 className="text-2xl font-semibold text-foreground tracking-tight">Clientes</h1>
           <p className="text-sm text-muted-foreground mt-1">Cadastro de clientes extraídos e normalizados pelo modelo canônico</p>
         </div>

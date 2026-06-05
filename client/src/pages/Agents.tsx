@@ -1,31 +1,20 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
-import { useSearch } from "wouter";
+import { useSearch, Link } from "wouter";
 import {
-  Bot,
-  Search,
-  Globe,
-  GitBranch,
-  Code2,
-  Download,
-  CheckCircle2,
-  Circle,
-  Loader2,
-  XCircle,
-  Zap,
-  ChevronDown,
-  ChevronRight,
+  Bot, Search, Globe, GitBranch, Code2, Download, CheckCircle2,
+  Circle, Loader2, XCircle, Zap, ChevronDown, ChevronRight,
+  ArrowLeft, Clock, TerminalSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ERPBadge, StatusBadge } from "@/components/ui/StatusBadge";
 import { toast } from "sonner";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle
+} from "@/components/ui/sheet";
 
 const STEPS = [
   {
@@ -62,69 +51,160 @@ const STEPS = [
   },
 ];
 
-function StepCard({
-  step,
-  status,
-  result,
-}: {
-  step: (typeof STEPS)[0];
-  status: "pending" | "active" | "done" | "failed";
-  result?: Record<string, unknown> | null;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const Icon = step.icon;
+// --- Subcomponents ---
 
-  const statusIcon =
-    status === "done" ? (
-      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-    ) : status === "active" ? (
-      <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
-    ) : status === "failed" ? (
-      <XCircle className="w-4 h-4 text-red-400" />
-    ) : (
-      <Circle className="w-4 h-4 text-muted-foreground" />
-    );
+function LiveLogsPanel({ pipelineId, open, onOpenChange }: { pipelineId: number | null, open: boolean, onOpenChange: (o: boolean) => void }) {
+  const { data: logs = [] } = trpc.agents.getPipelineLogs.useQuery(
+    { pipelineId: pipelineId ?? 0 },
+    { enabled: open && !!pipelineId, refetchInterval: 3000 }
+  );
 
   return (
-    <div
-      className={`border rounded-xl p-4 transition-all duration-200 ${
-        status === "active"
-          ? "border-blue-500/40 bg-blue-500/5"
-          : status === "done"
-          ? "border-emerald-500/20 bg-emerald-500/5"
-          : status === "failed"
-          ? "border-red-500/20 bg-red-500/5"
-          : "border-border bg-card"
-      }`}
-    >
-      <div className="flex items-center gap-3">
-        <div className={`w-9 h-9 rounded-lg border flex items-center justify-center flex-shrink-0 ${step.bg}`}>
-          <Icon className={`w-4 h-4 ${step.color}`} />
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-[400px] sm:w-[540px] flex flex-col bg-slate-950 border-l border-slate-800">
+        <SheetHeader>
+          <SheetTitle className="text-slate-200 flex items-center gap-2">
+            <TerminalSquare className="w-5 h-5" />
+            Logs ao Vivo
+          </SheetTitle>
+        </SheetHeader>
+        <div className="flex-1 mt-4 rounded-md border border-slate-800 bg-black/50 p-4 font-mono text-xs overflow-y-auto space-y-2">
+          {logs.length === 0 ? (
+            <p className="text-slate-500 italic">Aguardando logs...</p>
+          ) : (
+            logs.map((l, i) => (
+              <div key={i} className="flex gap-2">
+                <span className="text-slate-500 flex-shrink-0">
+                  {new Date(l.timestamp).toLocaleTimeString("pt-BR", { hour12: false })}
+                </span>
+                <span className={l.level === "error" ? "text-red-400" : l.level === "warn" ? "text-amber-400" : "text-slate-300 whitespace-pre-wrap break-all"}>
+                  {l.message}
+                </span>
+              </div>
+            ))
+          )}
         </div>
-        <div className="flex-1">
-          <p className="text-sm font-semibold text-foreground">{step.label}</p>
-          <p className="text-xs text-muted-foreground">{step.description}</p>
-        </div>
-        {statusIcon}
-        {result && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </button>
-        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function ElapsedTimer({ startedAt }: { startedAt: string | Date }) {
+  const [elapsed, setElapsed] = useState("");
+
+  useEffect(() => {
+    const update = () => {
+      const diff = Date.now() - new Date(startedAt).getTime();
+      const m = Math.floor(diff / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setElapsed(`${m}m ${s}s`);
+    };
+    update();
+    const t = setInterval(update, 1000);
+    return () => clearInterval(t);
+  }, [startedAt]);
+
+  return <span className="text-xs text-blue-400 flex items-center gap-1"><Clock className="w-3 h-3" /> Executando há {elapsed}</span>;
+}
+
+function PipelineRow({ p, logsOpen, setLogsOpen, setRunningId }: { p: any, logsOpen: boolean, setLogsOpen: (v: boolean) => void, setRunningId: (id: number) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const isRunning = p.status === "running";
+
+  const getStepStatus = (stepKey: string): "pending" | "active" | "done" | "failed" => {
+    const stepOrder = ["discovery", "mapping", "generator", "extractor", "done"];
+    const currentIdx = stepOrder.indexOf(p.currentStep);
+    const stepIdx = stepOrder.indexOf(stepKey);
+
+    if (p.status === "failed") {
+      if (stepIdx < currentIdx) return "done";
+      if (stepIdx === currentIdx) return "failed";
+      return "pending";
+    }
+    if (stepIdx < currentIdx) return "done";
+    if (stepIdx === currentIdx && isRunning) return "active";
+    if (p.status === "completed") return "done";
+    return "pending";
+  };
+
+  const getStepIcon = (s: "pending" | "active" | "done" | "failed") => {
+    if (s === "done") return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />;
+    if (s === "active") return <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin" />;
+    if (s === "failed") return <XCircle className="w-3.5 h-3.5 text-red-400" />;
+    return <Circle className="w-3.5 h-3.5 text-muted-foreground" />;
+  };
+
+  // Helper info details
+  const getStepDetail = (stepKey: string) => {
+    if (stepKey === "discovery" && p.discoveryResult) {
+      return `Endpoint count: ${p.discoveryResult.endpoints?.length || 0}`;
+    }
+    if (stepKey === "generator" && p.generatorResult) {
+      return `Conectores gerados: OK`;
+    }
+    if (stepKey === "extractor" && p.extractorResult?.byEntity) {
+      const counts = p.extractorResult.byEntity;
+      return Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(" | ");
+    }
+    return null;
+  };
+
+  return (
+    <div className={`bg-card border rounded-xl p-4 transition-all ${isRunning ? "border-blue-500/30" : "border-border"}`}>
+      <div className="flex items-center gap-3 cursor-pointer" onClick={() => setExpanded(!expanded)}>
+        {expanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+        <ERPBadge erp={p.erpType} />
+        <StatusBadge status={p.status} />
+        <span className="text-xs text-muted-foreground font-mono flex-1 truncate">
+          Step: {p.currentStep}
+        </span>
+        {isRunning && <ElapsedTimer startedAt={p.startedAt} />}
+        <span className="text-xs text-muted-foreground">
+          {new Date(p.startedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+        </span>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-7 text-xs border-border gap-1.5"
+          onClick={(e) => { e.stopPropagation(); setRunningId(p.id); setLogsOpen(true); }}
+        >
+          <TerminalSquare className="w-3 h-3" /> Ver Logs
+        </Button>
       </div>
-      {expanded && result && (
-        <div className="mt-3 p-3 rounded-lg bg-background/50 border border-border">
-          <pre className="text-xs text-muted-foreground font-mono overflow-auto max-h-48 whitespace-pre-wrap">
-            {result ? JSON.stringify(result, null, 2) : ""}
-          </pre>
+
+      {p.errorMessage && (
+        <div className="mt-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-2">
+          <XCircle className="w-4 h-4 text-red-400 mt-0.5" />
+          <p className="text-xs text-red-400 font-mono break-all">{p.errorMessage}</p>
+        </div>
+      )}
+
+      {expanded && (
+        <div className="mt-4 pl-7 space-y-3 border-l-2 border-border ml-2">
+          {STEPS.map((step) => {
+            const st = getStepStatus(step.key);
+            const detail = getStepDetail(step.key);
+            return (
+              <div key={step.key} className="flex flex-col gap-1 relative">
+                <div className="absolute -left-[23px] top-1 bg-card">
+                  {getStepIcon(st)}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-semibold ${st === "active" ? "text-blue-400" : st === "failed" ? "text-red-400" : st === "done" ? "text-emerald-400" : "text-muted-foreground"}`}>
+                    {step.label}
+                  </span>
+                </div>
+                {detail && <span className="text-[11px] text-muted-foreground font-mono bg-muted/30 px-2 py-0.5 rounded-sm inline-block w-fit">{detail}</span>}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
+
+// --- Main Page ---
 
 export default function Agents() {
   const search = useSearch();
@@ -136,6 +216,7 @@ export default function Agents() {
   const [selectedErp, setSelectedErp] = useState<"conta_azul" | "omie">("conta_azul");
   const [runningPipelineId, setRunningPipelineId] = useState<number | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(false);
 
   const tenantId = parseInt(selectedTenantId || "0");
 
@@ -143,6 +224,12 @@ export default function Agents() {
     { tenantId },
     { enabled: tenantId > 0, refetchInterval: isRunning ? 2000 : false }
   );
+
+  useEffect(() => {
+    const active = pipelines.find(p => p.status === "running");
+    if (active) setIsRunning(true);
+    else setIsRunning(false);
+  }, [pipelines]);
 
   const runPipelineMutation = trpc.agents.runPipeline.useMutation({
     onSuccess: (data) => {
@@ -166,41 +253,15 @@ export default function Agents() {
     runPipelineMutation.mutate({ tenantId, erpType: selectedErp });
   };
 
-  const activePipeline = runningPipelineId
-    ? pipelines.find((p) => p.id === runningPipelineId)
-    : pipelines.find((p) => p.status === "running") ?? pipelines[0];
-
-  const getStepStatus = (stepKey: string): "pending" | "active" | "done" | "failed" => {
-    if (!activePipeline) return "pending";
-    const stepOrder = ["discovery", "mapping", "generator", "extractor", "done"];
-    const currentIdx = stepOrder.indexOf(activePipeline.currentStep);
-    const stepIdx = stepOrder.indexOf(stepKey);
-
-    if (activePipeline.status === "failed") {
-      if (stepIdx < currentIdx) return "done";
-      if (stepIdx === currentIdx) return "failed";
-      return "pending";
-    }
-    if (stepIdx < currentIdx) return "done";
-    if (stepIdx === currentIdx && activePipeline.status === "running") return "active";
-    if (activePipeline.status === "completed") return "done";
-    return "pending";
-  };
-
-  const getStepResult = (stepKey: string): Record<string, unknown> | null | undefined => {
-    if (!activePipeline) return undefined;
-    const map: Record<string, Record<string, unknown> | null | undefined> = {
-      discovery: activePipeline.discoveryResult as Record<string, unknown> | null | undefined,
-      mapping: activePipeline.mappingResult as Record<string, unknown> | null | undefined,
-      generator: activePipeline.generatorResult as Record<string, unknown> | null | undefined,
-      extractor: activePipeline.extractorResult as Record<string, unknown> | null | undefined,
-    };
-    return map[stepKey];
-  };
-
   return (
     <div className="space-y-6">
+      <LiveLogsPanel pipelineId={runningPipelineId} open={logsOpen} onOpenChange={setLogsOpen} />
+      
       <div>
+        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground mb-4 -ml-3" onClick={() => window.history.back()}>
+          <ArrowLeft className="w-4 h-4" />
+          Voltar
+        </Button>
         <h1 className="text-xl font-semibold text-foreground">Agentes de Extração</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Pipeline de IA: Discovery → Mapping → Generator → Extractor</p>
       </div>
@@ -261,95 +322,33 @@ export default function Agents() {
             </Button>
           </div>
         </div>
+      </div>
 
-        {(isRunning || runPipelineMutation.isPending) && (
-          <div className="mt-4 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
-            <p className="text-xs text-blue-400 flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              Pipeline em execução. Os agentes estão processando os dados do ERP...
-            </p>
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-foreground">Histórico de Execuções</h2>
+        {!tenantId ? (
+          <div className="bg-card border border-border rounded-xl p-8 flex flex-col items-center text-muted-foreground">
+            <Bot className="w-10 h-10 mb-3 opacity-20" />
+            <p className="text-sm">Selecione um tenant para ver o histórico</p>
+          </div>
+        ) : pipelines.length === 0 ? (
+          <div className="bg-card border border-border rounded-xl p-8 flex flex-col items-center text-muted-foreground">
+            <Bot className="w-10 h-10 mb-3 opacity-20" />
+            <p className="text-sm">Nenhum pipeline executado para este tenant</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pipelines.slice(0, 15).map((p) => (
+              <PipelineRow 
+                key={p.id} 
+                p={p} 
+                logsOpen={logsOpen} 
+                setLogsOpen={setLogsOpen} 
+                setRunningId={setRunningPipelineId} 
+              />
+            ))}
           </div>
         )}
-      </div>
-
-      {/* Pipeline Steps */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">Etapas do Pipeline</h2>
-          {STEPS.map((step) => (
-            <StepCard
-              key={step.key}
-              step={step}
-              status={getStepStatus(step.key)}
-              result={getStepResult(step.key)}
-            />
-          ))}
-        </div>
-
-        {/* Pipeline History */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">Histórico de Execuções</h2>
-          {!tenantId ? (
-            <div className="bg-card border border-border rounded-xl p-8 flex flex-col items-center text-muted-foreground">
-              <Bot className="w-10 h-10 mb-3 opacity-20" />
-              <p className="text-sm">Selecione um tenant para ver o histórico</p>
-            </div>
-          ) : pipelines.length === 0 ? (
-            <div className="bg-card border border-border rounded-xl p-8 flex flex-col items-center text-muted-foreground">
-              <Bot className="w-10 h-10 mb-3 opacity-20" />
-              <p className="text-sm">Nenhum pipeline executado para este tenant</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {pipelines.slice(0, 10).map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => setRunningPipelineId(p.id)}
-                  className={`bg-card border rounded-xl p-4 cursor-pointer transition-all hover:border-primary/30 ${
-                    activePipeline?.id === p.id ? "border-primary/40 bg-primary/5" : "border-border"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <ERPBadge erp={p.erpType} />
-                    <StatusBadge status={p.status} />
-                    <span className="text-xs text-muted-foreground font-mono flex-1">
-                      Step: {p.currentStep}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(p.startedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
-                    </span>
-                  </div>
-                  {p.errorMessage && (
-                    <p className="mt-2 text-xs text-red-400 font-mono truncate">{p.errorMessage}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Architecture Info */}
-      <div className="bg-card border border-border rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-foreground mb-4">Modelo Canônico de Saída</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { field: "external_id", type: "string", desc: "ID único no ERP de origem" },
-            { field: "customer_name", type: "string", desc: "Nome do cliente/parceiro" },
-            { field: "issue_date", type: "date", desc: "Data de emissão (YYYY-MM-DD)" },
-            { field: "gross_amount", type: "decimal", desc: "Valor bruto do documento" },
-          ].map((f) => (
-            <div key={f.field} className="p-3 rounded-lg bg-background/50 border border-border">
-              <p className="text-xs font-mono font-semibold text-primary">{f.field}</p>
-              <p className="text-xs text-amber-400 mt-0.5">{f.type}</p>
-              <p className="text-xs text-muted-foreground mt-1">{f.desc}</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 p-3 rounded-lg bg-muted/20 border border-border text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">Envelopes suportados: </span>
-          <span className="font-mono">itens · items · data · titulosEncontrados · lista direta (array)</span>
-        </div>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Link } from "wouter";
-import { Building2, Plus, Trash2, Settings, ArrowRight, ChevronDown } from "lucide-react";
+import { Building2, Plus, Trash2, Settings, ArrowRight, ChevronDown, ChevronLeft } from "lucide-react";
 import { StatusBadge, ERPBadge } from "@/components/ui/StatusBadge";
 import { toast } from "sonner";
 import {
@@ -98,6 +98,12 @@ export default function Tenants() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
+          <div className="mb-2 -ml-3">
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground" onClick={() => window.history.back()}>
+              <ChevronLeft className="w-4 h-4" />
+              Voltar
+            </Button>
+          </div>
           <h1 className="text-xl font-semibold text-foreground">Tenants</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Empresas cadastradas na plataforma</p>
         </div>
