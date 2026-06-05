@@ -217,6 +217,7 @@ export default function Agents() {
   const [runningPipelineId, setRunningPipelineId] = useState<number | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
+  const utils = trpc.useUtils();
 
   const tenantId = parseInt(selectedTenantId || "0");
 
@@ -247,6 +248,13 @@ export default function Agents() {
     },
   });
 
+  const resetZombiesMutation = trpc.agents.resetZombies.useMutation({
+    onSuccess: () => {
+      toast.success("Execuções travadas foram limpas!");
+      utils.agents.getPipelines.invalidate();
+    },
+  });
+
   const handleRun = () => {
     if (!tenantId) { toast.error("Selecione um tenant"); return; }
     setIsRunning(true);
@@ -258,10 +266,16 @@ export default function Agents() {
       <LiveLogsPanel pipelineId={runningPipelineId} open={logsOpen} onOpenChange={setLogsOpen} />
       
       <div>
-        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground mb-4 -ml-3" onClick={() => window.history.back()}>
-          <ArrowLeft className="w-4 h-4" />
-          Voltar
-        </Button>
+        <div className="flex items-center justify-between mb-4">
+          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground -ml-3" onClick={() => window.history.back()}>
+            <ArrowLeft className="w-4 h-4" />
+            Voltar
+          </Button>
+          <Button variant="outline" size="sm" className="text-red-400 border-red-500/20 hover:bg-red-500/10" onClick={() => resetZombiesMutation.mutate()} disabled={resetZombiesMutation.isPending}>
+            <XCircle className="w-4 h-4 mr-1.5" />
+            Limpar Travados
+          </Button>
+        </div>
         <h1 className="text-xl font-semibold text-foreground">Agentes de Extração</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Pipeline de IA: Discovery → Mapping → Generator → Extractor</p>
       </div>

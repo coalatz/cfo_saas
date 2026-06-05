@@ -11,6 +11,10 @@ export function getLogs(pipelineId: number) {
   return pipelineLogsMap.get(pipelineId) || [];
 }
 
+export function clearLogs(pipelineId: number) {
+  pipelineLogsMap.delete(pipelineId);
+}
+
 const originalLog = console.log;
 const originalWarn = console.warn;
 const originalError = console.error;

@@ -1949,6 +1949,12 @@ export async function runFullPipeline(
       });
     });
 
+    // Agendar limpeza de logs em 1 hora para não vazar memória
+    setTimeout(async () => {
+      const { clearLogs } = await import("./logger");
+      clearLogs(pipelineId);
+    }, 1000 * 60 * 60);
+
     return {
       pipelineId: result.pipelineId as number,
       success: !result.error,
@@ -1961,6 +1967,13 @@ export async function runFullPipeline(
       errorMessage: err?.message,
       finishedAt: new Date(),
     });
+    
+    // Agendar limpeza de logs também em caso de erro
+    setTimeout(async () => {
+      const { clearLogs } = await import("./logger");
+      clearLogs(pipelineId);
+    }, 1000 * 60 * 60);
+
     return { pipelineId, success: false, error: err?.message };
   }
 }
@@ -1977,23 +1990,25 @@ export async function runDiscoveryOnly(
     status: "running",
     currentStep: "discovery",
   });
-  const result = await discoveryNode({
-    pipelineId,
-    tenantId: 0,
-    erpName,
-    credentials: {},
-    docUrl,
-    modelConfigs: {
-      discovery: modelConfig ?? DEFAULT_MODEL_CONFIGS.discovery!,
-    },
-    discoveryResult: undefined,
-    mappingResult: undefined,
-    generatorResult: undefined,
-    extractorResult: undefined,
-    error: undefined,
-    retryCount: 0,
-    lastCodeError: undefined,
-  } as PipelineState);
+  const result = await pipelineLocalStorage.run({ pipelineId }, async () => {
+    return await discoveryNode({
+      pipelineId,
+      tenantId: 0,
+      erpName,
+      credentials: {},
+      docUrl,
+      modelConfigs: {
+        discovery: modelConfig ?? DEFAULT_MODEL_CONFIGS.discovery!,
+      },
+      discoveryResult: undefined,
+      mappingResult: undefined,
+      generatorResult: undefined,
+      extractorResult: undefined,
+      error: undefined,
+      retryCount: 0,
+      lastCodeError: undefined,
+    } as PipelineState);
+  });
   await updatePipeline(pipelineId, {
     status: "completed",
     finishedAt: new Date(),
@@ -2038,9 +2053,11 @@ export async function runGeneratorOnly(
     lastCodeError: undefined,
   };
 
-  st = { ...st, ...(await discoveryNode(st)) };
-  st = { ...st, ...(await mappingNode(st)) };
-  st = { ...st, ...(await generatorNode(st)) };
+  await pipelineLocalStorage.run({ pipelineId }, async () => {
+    st = { ...st, ...(await discoveryNode(st)) };
+    st = { ...st, ...(await mappingNode(st)) };
+    st = { ...st, ...(await generatorNode(st)) };
+  });
 
   await updatePipeline(pipelineId, {
     status: "completed",

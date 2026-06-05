@@ -134,6 +134,17 @@ const agentsRouter = router({
       const { getLogs } = await import("./logger");
       return getLogs(input.pipelineId);
     }),
+
+  resetZombies: publicProcedure
+    .mutation(async () => {
+      const { getDb } = await import("./db");
+      const { agentPipelines } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return { success: false, message: "Sem conexão com DB" };
+      await db.update(agentPipelines).set({ status: "failed", errorMessage: "Cancelado manualmente" }).where(eq(agentPipelines.status, "running"));
+      return { success: true };
+    }),
 });
 
 // ─── Model Configs Router ──────────────────────────────────────────────────────────────────
