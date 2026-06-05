@@ -162,7 +162,7 @@ export async function upsertErpConfig(data: InsertErpConfig): Promise<number> {
   if (existing) {
     await db
       .update(erpConfigs)
-      .set({ credentials: data.credentials, status: data.status ?? "configured" })
+      .set({ credentials: data.credentials, docUrl: data.docUrl ?? existing.docUrl, status: data.status ?? "configured" })
       .where(eq(erpConfigs.id, existing.id));
     return existing.id;
   }
@@ -533,7 +533,7 @@ export async function getModelConfig(
     .where(
       and(
         eq(agentModelConfigs.agentName, agentName),
-        // tenantId OR global (0)
+        sql`${agentModelConfigs.tenantId} IN (${tenantId}, 0)`
       )
     )
     .orderBy(desc(agentModelConfigs.tenantId)) // tenant-specific (higher id) first
