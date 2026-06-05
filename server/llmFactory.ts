@@ -157,14 +157,19 @@ export function createLLM(config: ModelConfig): BaseChatModel {
           ? rawApiUrl
           : `${rawApiUrl.replace(/\/$/, "")}/v1`;
 
+        // config.modelId vem do banco (ex: "default") — usa direto.
+        // Só cai pro ENV.llmModel se o banco não tiver nada configurado.
+        const modelName = config.modelId || ENV.llmModel || "gpt-4o";
+
         return new ChatOpenAI({
-          model: ENV.llmModel || "gpt-4o",
+          model: modelName,
           temperature,
           maxTokens,
           apiKey: apiKey.trim(),
           configuration: { baseURL },
         });
       }
+
 
       // Fallback local: Ollama
       const rawUrl = ENV.forgeApiUrl?.trim() || "http://localhost:11434";
