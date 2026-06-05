@@ -151,17 +151,17 @@ export function createLLM(config: ModelConfig): BaseChatModel {
       // Usa a chave passada pelo frontend (config.apiKey) OU do ambiente
       const apiKey = config.apiKey || ENV.forgeApiKey;
 
-      // Na plataforma Manus: usa o Forge API (OpenAI-compatible)
-      if (ENV.forgeApiUrl && apiKey) {
-        const baseURL = ENV.forgeApiUrl.endsWith("/v1")
-          ? ENV.forgeApiUrl
-          : `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1`;
+      const rawApiUrl = ENV.forgeApiUrl?.trim();
+      if (rawApiUrl && apiKey) {
+        const baseURL = rawApiUrl.endsWith("/v1")
+          ? rawApiUrl
+          : `${rawApiUrl.replace(/\/$/, "")}/v1`;
 
         return new ChatOpenAI({
           model: ENV.llmModel || "gpt-4o",
           temperature,
           maxTokens,
-          apiKey: apiKey,
+          apiKey: apiKey.trim(),
           configuration: { baseURL },
         });
       }
