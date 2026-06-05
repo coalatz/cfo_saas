@@ -1942,6 +1942,8 @@ export async function runFullPipeline(
       generatorResult: undefined,
       extractorResult: undefined,
       error: undefined,
+      retryCount: 0,
+      lastCodeError: undefined,
     });
 
     return {

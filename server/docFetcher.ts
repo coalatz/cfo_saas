@@ -121,9 +121,10 @@ export async function fetchRootHtml(docUrl: string): Promise<string> {
   console.log(`[DocFetcher] Fetching root HTML for ${docUrl}...`);
   let browser: any;
   try {
-    const wsEndpoint = process.env.BROWSERLESS_TOKEN ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}` : "";
+    const wsEndpoint = process.env.BROWSERLESS_URL || (process.env.BROWSERLESS_TOKEN ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}` : "");
     if (wsEndpoint) {
-      browser = await chromium.connect({ wsEndpoint });
+      console.log(`[DocFetcher] Conectando via WebSocket no Browserless...`);
+      browser = await chromium.connect({ wsEndpoint, timeout: 15000 });
     } else {
       browser = await chromium.launch({ headless: true });
     }
@@ -132,8 +133,8 @@ export async function fetchRootHtml(docUrl: string): Promise<string> {
     // Timeout longo (90s) para garantir que dê tempo de renderizar o JS pesado, mas não trave infinito
     const result = await Promise.race([
       (async () => {
-        await page.goto(docUrl, { waitUntil: 'networkidle', timeout: 80000 });
-        await page.waitForTimeout(2000);
+        await page.goto(docUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(1000);
         return await page.content();
       })(),
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error("Playwright hard timeout")), 90000))
@@ -323,9 +324,10 @@ export async function fetchDocumentation(docUrl: string, seedUrls?: string[]): P
   let browser: any;
   try {
     console.log(`[DocFetcher] Launching Playwright for ${docUrl}...`);
-    const wsEndpoint = process.env.BROWSERLESS_TOKEN ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}` : "";
+    const wsEndpoint = process.env.BROWSERLESS_URL || (process.env.BROWSERLESS_TOKEN ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}` : "");
     if (wsEndpoint) {
-      browser = await chromium.connect({ wsEndpoint });
+      console.log(`[DocFetcher] Conectando via WebSocket no Browserless...`);
+      browser = await chromium.connect({ wsEndpoint, timeout: 15000 });
     } else {
       browser = await chromium.launch({ headless: true });
     }
@@ -333,9 +335,9 @@ export async function fetchDocumentation(docUrl: string, seedUrls?: string[]): P
     
     await Promise.race([
       (async () => {
-        await page.goto(docUrl, { waitUntil: 'networkidle', timeout: 80000 });
+        await page.goto(docUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
         rootHtml = await page.content();
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(1000);
 
         for (const loc of await page.locator("a").all()) {
           const href = await loc.getAttribute("href");
