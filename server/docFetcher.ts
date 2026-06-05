@@ -121,7 +121,12 @@ export async function fetchRootHtml(docUrl: string): Promise<string> {
   console.log(`[DocFetcher] Fetching root HTML for ${docUrl}...`);
   let browser: any;
   try {
-    browser = await chromium.launch({ headless: true });
+    const wsEndpoint = process.env.BROWSERLESS_TOKEN ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}` : "";
+    if (wsEndpoint) {
+      browser = await chromium.connect({ wsEndpoint });
+    } else {
+      browser = await chromium.launch({ headless: true });
+    }
     const page = await browser.newPage();
     
     // Timeout longo (90s) para garantir que dê tempo de renderizar o JS pesado, mas não trave infinito
@@ -318,7 +323,12 @@ export async function fetchDocumentation(docUrl: string, seedUrls?: string[]): P
   let browser: any;
   try {
     console.log(`[DocFetcher] Launching Playwright for ${docUrl}...`);
-    browser = await chromium.launch({ headless: true });
+    const wsEndpoint = process.env.BROWSERLESS_TOKEN ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}` : "";
+    if (wsEndpoint) {
+      browser = await chromium.connect({ wsEndpoint });
+    } else {
+      browser = await chromium.launch({ headless: true });
+    }
     const page = await browser.newPage();
     
     await Promise.race([
