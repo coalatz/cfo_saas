@@ -119,35 +119,45 @@ function cleanHtml(html: string, baseUrl: string): { title: string; text: string
 
 export async function fetchRootHtml(docUrl: string): Promise<string> {
   console.log(`[DocFetcher] Fetching root HTML for ${docUrl}...`);
+  const wsEndpoint = process.env.BROWSERLESS_URL || (process.env.BROWSERLESS_TOKEN ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}` : "");
+  const isBrowserless = !!wsEndpoint;
+  const hardTimeout = isBrowserless ? 15000 : 90000;
+  const gotoTimeout  = isBrowserless ? 8000  : 30000;
+
   let browser: any;
-  try {
-    const wsEndpoint = process.env.BROWSERLESS_URL || (process.env.BROWSERLESS_TOKEN ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}` : "");
-    const isBrowserless = !!wsEndpoint;
+
+  const browserWork = async (): Promise<string> => {
     if (wsEndpoint) {
       console.log(`[DocFetcher] Conectando via WebSocket no Browserless...`);
-      browser = await chromium.connect({ wsEndpoint, timeout: isBrowserless ? 10000 : 15000 });
+      browser = await chromium.connect({ wsEndpoint, timeout: 8000 });
+      console.log(`[DocFetcher] Browserless conectado.`);
     } else {
       browser = await chromium.launch({ headless: true });
     }
     const page = await browser.newPage();
-    
-    const gotoTimeout = isBrowserless ? 10000 : 30000;
-    const hardTimeout = isBrowserless ? 20000 : 90000;
+    await page.goto(docUrl, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
+    await page.waitForTimeout(500);
+    return page.content();
+  };
 
+  try {
     const result = await Promise.race([
-      (async () => {
-        await page.goto(docUrl, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
-        await page.waitForTimeout(1000);
-        return await page.content();
-      })(),
-      new Promise<string>((_, reject) => setTimeout(() => reject(new Error("Playwright hard timeout")), hardTimeout))
+      browserWork(),
+      new Promise<string>((_, reject) =>
+        setTimeout(() => reject(new Error(`[DocFetcher] Hard timeout (${hardTimeout}ms) — caindo pro axios`)), hardTimeout)
+      ),
     ]);
     return result;
+  } catch (err: any) {
+    console.warn(`[DocFetcher] Playwright/Browserless falhou: ${err.message} — usando axios`);
+    const fallback = await fetchPage(docUrl);
+    if (fallback?.html) return fallback.html;
+    throw new Error(`fetchRootHtml: axios também falhou para ${docUrl}`);
   } finally {
     if (browser) {
       await Promise.race([
         browser.close().catch(() => {}),
-        new Promise(resolve => setTimeout(resolve, 5000))
+        new Promise(resolve => setTimeout(resolve, 3000)),
       ]);
     }
   }
@@ -325,40 +335,42 @@ export async function fetchDocumentation(docUrl: string, seedUrls?: string[]): P
 
   // 1. Playwright na página raiz
   let browser: any;
-  try {
-    console.log(`[DocFetcher] Launching Playwright for ${docUrl}...`);
-    const wsEndpoint = process.env.BROWSERLESS_URL || (process.env.BROWSERLESS_TOKEN ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}` : "");
-    const isBrowserless = !!wsEndpoint;
+  const wsEndpoint = process.env.BROWSERLESS_URL || (process.env.BROWSERLESS_TOKEN ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}` : "");
+  const isBrowserless = !!wsEndpoint;
+  const hardTimeout  = isBrowserless ? 15000 : 45000;
+  const gotoTimeout  = isBrowserless ? 8000  : 15000;
+
+  const browserWork = async () => {
     if (wsEndpoint) {
       console.log(`[DocFetcher] Conectando via WebSocket no Browserless...`);
-      browser = await chromium.connect({ wsEndpoint, timeout: isBrowserless ? 10000 : 15000 });
+      browser = await chromium.connect({ wsEndpoint, timeout: 8000 });
       console.log('[DocFetcher] Browserless conectado, abrindo página...');
     } else {
       browser = await chromium.launch({ headless: true });
     }
     const page = await browser.newPage();
-    
-    const gotoTimeout = isBrowserless ? 10000 : 15000;
-    const hardTimeout = isBrowserless ? 20000 : 45000;
+    await page.goto(docUrl, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
+    console.log('[DocFetcher] Página carregada, extraindo conteúdo...');
+    rootHtml = await page.content();
+    await page.waitForTimeout(500);
 
+    for (const loc of await page.locator("a").all()) {
+      const href = await loc.getAttribute("href");
+      if (href && (href.endsWith(".json") || href.includes(".json?"))) {
+        jsonLink = new URL(href, docUrl).toString();
+        break;
+      }
+    }
+  };
+
+  try {
+    console.log(`[DocFetcher] Launching Playwright for ${docUrl}...`);
     await Promise.race([
-      (async () => {
-        await page.goto(docUrl, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
-        console.log('[DocFetcher] Página carregada, extraindo conteúdo...');
-        rootHtml = await page.content();
-        await page.waitForTimeout(1000);
-
-        for (const loc of await page.locator("a").all()) {
-          const href = await loc.getAttribute("href");
-          if (href && (href.endsWith(".json") || href.includes(".json?"))) {
-            jsonLink = new URL(href, docUrl).toString();
-            break;
-          }
-        }
-      })(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Playwright hard timeout")), hardTimeout))
+      browserWork(),
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error(`Playwright hard timeout (${hardTimeout}ms)`)), hardTimeout)
+      ),
     ]);
-
   } catch (e: any) {
     console.warn("[DocFetcher] Playwright falhou, caindo pro axios:", e.message);
     const fallback = await fetchPage(docUrl);
