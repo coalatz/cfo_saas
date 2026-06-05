@@ -371,7 +371,8 @@ async function discoveryNode(
   // ═══════════════════════════════════════════════════════════════════════════
 
   let accumulatedText = "";
-  const MAX_ACCUMULATED_CHARS = 32768; // 32KB
+  // Reduzido para 10000 chars (~2.5k tokens) porque a API do Manus quebra a conexão em payloads maiores
+  const MAX_ACCUMULATED_CHARS = 10000; 
   const neededEntities = ["invoices", "receivables", "payables", "customers"];
   const foundEntities = new Set<string>();
   const entityExamples: Record<

@@ -164,9 +164,13 @@ export function createLLM(config: ModelConfig): BaseChatModel {
           ? rawApiUrl
           : `${rawApiUrl.replace(/\/$/, "")}/v1`;
 
-        // config.modelId vem do banco (ex: "default") — usa direto.
-        // Só cai pro ENV.llmModel se o banco não tiver nada configurado.
-        const modelName = config.modelId || ENV.llmModel || "gpt-4o";
+        // config.modelId vem do banco — usa se for explícito (não "default").
+        // Se for "default", cai pro ENV.llmModel que pode estar configurado no ambiente de prod.
+        // Último fallback: llama-3.3-70b-versatile (modelo válido confirmado no Manus).
+        const modelName =
+          (config.modelId && config.modelId !== "default")
+            ? config.modelId
+            : (ENV.llmModel || "llama-3.3-70b-versatile");
 
         return new ChatOpenAI({
           model: modelName,
@@ -224,13 +228,33 @@ export async function invokeLLMWithConfig(
       return String(content);
     } catch (err: any) {
       lastError = err;
-      if (err?.message?.includes("429") || err?.response?.status === 429) {
+      const errMsg = err?.message || String(err);
+      console.warn(`[LLM Error] Try ${i + 1}/${maxRetries} failed. Message: ${errMsg}`);
+      if (err?.cause) console.warn(`[LLM Error Cause]:`, err.cause);
+      
+      const isRateLimit = errMsg.includes("429") || err?.response?.status === 429;
+      const isNetworkError = errMsg.toLowerCase().includes("connection error") || 
+                             errMsg.toLowerCase().includes("fetch failed") || 
+                             errMsg.includes("ECONNRESET") || 
+                             errMsg.includes("ETIMEDOUT");
+
+      if (isRateLimit) {
         const waitTime = (i + 1) * 10000; // wait 10s, 20s, 30s
         console.warn(`[LLM Rate Limit] Limit reached. Retrying in ${waitTime / 1000}s...`);
         await new Promise(r => setTimeout(r, waitTime));
         continue;
       }
-      throw err; // if it's not a 429, throw immediately
+      
+      if (isNetworkError) {
+        const waitTime = 5000;
+        console.warn(`[LLM Network Error] Retrying in ${waitTime / 1000}s...`);
+        await new Promise(r => setTimeout(r, waitTime));
+        continue;
+      }
+
+      // If it's a 400 or 401 or something else, it might be fatal, but let's log the full thing
+      console.error("[LLM Fatal Error] Full error:", err);
+      throw err; 
     }
   }
   throw lastError;
